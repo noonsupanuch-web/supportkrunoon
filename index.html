@@ -1,0 +1,883 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ตารางเรียนและเช็คชื่อครู</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- html2canvas สำหรับบันทึกรูปภาพ -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    
+    <!-- Phosphor Icons (แทน Lucide) -->
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Mali:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <style>
+        body { font-family: 'Mali', cursive; background-color: #fff1f2; }
+        .font-mali { font-family: 'Mali', cursive; }
+        
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        
+        .animate-fade-in { animation: fadeIn 0.3s ease-in-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        
+        .animate-bounce-slow { animation: bounce 3s infinite; }
+        
+        /* สไตล์สำหรับซ่อนเครื่องมือตอนปริ้นท์ */
+        .printing .hide-on-print { display: none !important; }
+        .printing input[type="text"], .printing textarea { border: none !important; background: transparent !important; resize: none; pointer-events: none; }
+    </style>
+</head>
+<body class="p-2 md:p-6 text-gray-800 pb-20">
+
+    <!-- Modal Login -->
+    <div id="login-modal" class="fixed inset-0 bg-black/50 z-50 hidden items-center justify-center backdrop-blur-sm p-4">
+        <div class="bg-white rounded-3xl p-8 max-w-sm w-full shadow-2xl animate-fade-in text-center border-4 border-rose-200">
+            <div class="w-20 h-20 bg-rose-100 rounded-full flex items-center justify-center mx-auto mb-4 border-2 border-rose-300">
+                <i class="ph ph-lock text-4xl text-rose-500"></i>
+            </div>
+            <h2 class="text-2xl font-bold mb-2 text-gray-800">เข้าสู่ระบบคุณครู</h2>
+            <p class="text-gray-500 mb-6 text-sm">กรุณาใส่รหัสผ่านเพื่อแก้ไขตารางเรียน</p>
+            
+            <input type="password" id="password-input" placeholder="รหัสผ่าน..." class="w-full px-4 py-3 rounded-xl border-2 border-gray-200 focus:border-rose-400 focus:outline-none text-center text-lg mb-2">
+            <p id="login-error" class="text-red-500 text-sm mb-4 font-bold hidden">รหัสผ่านไม่ถูกต้องค่ะ!</p>
+            
+            <div class="flex gap-3 mt-6">
+                <button onclick="closeLoginModal()" class="flex-1 py-3 rounded-xl bg-gray-100 hover:bg-gray-200 font-bold text-gray-700 transition">ยกเลิก</button>
+                <button onclick="handleLogin()" class="flex-1 py-3 rounded-xl bg-rose-500 hover:bg-rose-600 font-bold text-white shadow-md transition">เข้าสู่ระบบ</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- แถบควบคุมด้านบน -->
+    <div class="max-w-6xl w-full mx-auto bg-white rounded-2xl shadow-sm border border-rose-100 p-4 mb-6 flex flex-col md:flex-row justify-between items-center gap-4">
+        <div class="flex items-center gap-4 bg-rose-50 p-2 rounded-2xl border border-rose-100">
+            <button onclick="changeMonth(-1)" class="p-2 bg-white hover:bg-rose-200 rounded-xl shadow-sm transition">
+                <i class="ph ph-caret-left text-2xl text-rose-600"></i>
+            </button>
+            <h2 id="month-year-display" class="text-xl md:text-2xl font-bold w-40 md:w-48 text-center text-rose-800"></h2>
+            <button onclick="changeMonth(1)" class="p-2 bg-white hover:bg-rose-200 rounded-xl shadow-sm transition">
+                <i class="ph ph-caret-right text-2xl text-rose-600"></i>
+            </button>
+        </div>
+
+        <div class="flex items-center gap-4 flex-wrap justify-center">
+            <button id="admin-toggle-btn" class="flex items-center gap-2 bg-rose-100 text-rose-700 px-5 py-2.5 rounded-xl hover:bg-rose-200 transition font-bold border-2 border-rose-200 shadow-sm">
+                <i class="ph ph-lock text-lg"></i> <span>สำหรับแอดมิน</span>
+            </button>
+
+            <button onclick="exportToImage()" class="flex items-center gap-2 bg-gradient-to-r from-red-500 to-rose-500 text-white px-6 py-2.5 rounded-xl hover:from-red-600 hover:to-rose-600 transition shadow-md font-bold text-lg border-2 border-red-600">
+                <i class="ph ph-image text-xl"></i> บันทึกรูปภาพ
+            </button>
+        </div>
+    </div>
+
+    <!-- แผงควบคุมตกแต่ง (เฉพาะแอดมิน) -->
+    <div id="admin-tools" class="max-w-6xl w-full mx-auto bg-blue-50 rounded-2xl p-4 mb-6 border-2 border-blue-200 shadow-sm flex-wrap gap-6 items-center hidden animate-fade-in">
+        <span class="font-bold text-blue-800 flex items-center gap-2">
+            <i class="ph ph-palette text-xl"></i> ตกแต่งตารางเรียน:
+        </span>
+        
+        <div class="flex items-center gap-2 bg-white px-3 py-1.5 rounded-xl border border-blue-100 shadow-sm">
+            <label class="text-sm font-bold text-gray-700">สีหัวตาราง:</label>
+            <input type="color" id="header-color" value="#ef4444" onchange="updateColors()" class="w-8 h-8 rounded cursor-pointer border-0 bg-transparent" />
+        </div>
+
+        <div class="flex items-center gap-2 bg-white px-3 py-1.5 rounded-xl border border-blue-100 shadow-sm">
+            <label class="text-sm font-bold text-gray-700">สีชื่อครู:</label>
+            <input type="color" id="teacher-color" value="#fde047" onchange="updateColors()" class="w-8 h-8 rounded cursor-pointer border-0 bg-transparent" />
+        </div>
+
+        <div class="flex flex-wrap gap-2 items-center bg-white px-3 py-1.5 rounded-xl border border-blue-100 shadow-sm">
+            <span class="text-sm font-bold text-gray-700">อัปโหลดรูป:</span>
+            <label class="cursor-pointer bg-blue-100 hover:bg-blue-200 text-blue-800 px-2 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1">
+                ซ้ายบน <span id="check-tl" class="hidden">✅</span>
+                <input type="file" accept="image/*" class="hidden" onchange="uploadImage(event, 'topLeft')" />
+            </label>
+            <button onclick="removeImage('topLeft')" class="text-red-500"><i class="ph ph-trash"></i></button>
+            
+            <label class="cursor-pointer bg-blue-100 hover:bg-blue-200 text-blue-800 px-2 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1">
+                ขวาบน <span id="check-tr" class="hidden">✅</span>
+                <input type="file" accept="image/*" class="hidden" onchange="uploadImage(event, 'topRight')" />
+            </label>
+            <button onclick="removeImage('topRight')" class="text-red-500"><i class="ph ph-trash"></i></button>
+
+            <label class="cursor-pointer bg-blue-100 hover:bg-blue-200 text-blue-800 px-2 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1">
+                ล่างขวา <span id="check-br" class="hidden">✅</span>
+                <input type="file" accept="image/*" class="hidden" onchange="uploadImage(event, 'bottomRight')" />
+            </label>
+            <button onclick="removeImage('bottomRight')" class="text-red-500"><i class="ph ph-trash"></i></button>
+        </div>
+    </div>
+
+    <!-- พื้นที่บันทึกรูปภาพ -->
+    <div id="printable-schedule" class="max-w-6xl w-full mx-auto bg-white rounded-[32px] overflow-hidden shadow-2xl relative border-[6px] border-gray-100 pb-4">
+        
+        <!-- Header -->
+        <header id="schedule-header" class="text-white p-4 md:p-6 relative flex items-center justify-center shadow-sm border-b-[6px] border-black transition-colors min-h-[120px] md:min-h-[140px]" style="background-color: #ef4444;">
+            <div id="img-top-left" class="absolute left-2 md:left-8 flex items-center justify-center z-0 opacity-30 md:opacity-100 pointer-events-none">
+                <div class="hidden md:flex items-end opacity-90 drop-shadow-lg">
+                    <span class="text-5xl md:text-6xl z-10 transform -rotate-12">🎒</span>
+                </div>
+            </div>
+            
+            <div id="img-top-right" class="absolute right-2 md:right-8 flex items-center justify-center z-0 opacity-30 md:opacity-100 pointer-events-none">
+                <div class="hidden md:flex items-end opacity-90 drop-shadow-lg">
+                    <span class="text-5xl md:text-6xl z-10 transform rotate-12">📝</span>
+                </div>
+            </div>
+            
+            <h1 class="text-2xl sm:text-3xl md:text-[50px] lg:text-[56px] font-black tracking-wide drop-shadow-[0_4px_4px_rgba(0,0,0,0.5)] flex flex-wrap justify-center items-center gap-2 md:gap-3 z-20 relative text-center">
+                ตารางเรียนครู
+                <input type="text" id="teacher-name-input" value="นุ่น" oninput="updateState('teacherName', this.value)" class="bg-transparent border-b-4 border-dashed border-white/40 focus:border-white focus:outline-none text-center w-24 sm:w-32 md:w-56 placeholder-white/70 font-mali transition-colors" style="color: #fde047;" readonly>
+                <span class="ml-0 md:ml-2">เดือน<span id="header-month-text"></span></span>
+            </h1>
+        </header>
+
+        <div class="flex flex-col lg:flex-row p-4 md:p-6 lg:p-8 gap-4 md:gap-8 bg-white rounded-b-3xl">
+            <!-- Calendar Section -->
+            <div class="w-full lg:w-2/3">
+                <div class="grid grid-cols-7 mb-2 md:mb-3 bg-gray-100 rounded-xl md:rounded-2xl border-[2px] md:border-[3px] border-black overflow-hidden shadow-sm">
+                    <div class="text-center font-bold text-xs sm:text-sm md:text-lg lg:text-xl py-2 md:py-3 border-r-[2px] md:border-r-[3px] border-black text-gray-900">จันทร์</div>
+                    <div class="text-center font-bold text-xs sm:text-sm md:text-lg lg:text-xl py-2 md:py-3 border-r-[2px] md:border-r-[3px] border-black text-gray-900">อังคาร</div>
+                    <div class="text-center font-bold text-xs sm:text-sm md:text-lg lg:text-xl py-2 md:py-3 border-r-[2px] md:border-r-[3px] border-black text-gray-900">พุธ</div>
+                    <div class="text-center font-bold text-xs sm:text-sm md:text-lg lg:text-xl py-2 md:py-3 border-r-[2px] md:border-r-[3px] border-black text-gray-900">พฤหัสบดี</div>
+                    <div class="text-center font-bold text-xs sm:text-sm md:text-lg lg:text-xl py-2 md:py-3 border-r-[2px] md:border-r-[3px] border-black text-gray-900">ศุกร์</div>
+                    <div class="text-center font-bold text-xs sm:text-sm md:text-lg lg:text-xl py-2 md:py-3 border-r-[2px] md:border-r-[3px] border-black bg-purple-200 text-gray-900">เสาร์</div>
+                    <div class="text-center font-bold text-xs sm:text-sm md:text-lg lg:text-xl py-2 md:py-3 bg-red-200 text-gray-900">อาทิตย์</div>
+                </div>
+                
+                <div id="calendar-grid" class="grid grid-cols-7 border-t-[2px] md:border-t-[3px] border-l-[2px] md:border-l-[3px] border-black bg-black gap-[2px] md:gap-[3px] shadow-lg rounded-xl md:rounded-2xl overflow-hidden">
+                    <!-- JS will render cells here -->
+                </div>
+            </div>
+
+            <!-- Side Info Section -->
+            <div class="w-full lg:w-1/3 flex flex-col items-center p-2 relative mt-4 lg:mt-0">
+                <div class="flex flex-col items-center mb-4 md:mb-6 w-full">
+                    <h3 class="text-xl md:text-[26px] lg:text-[32px] font-black text-gray-900 flex items-center gap-2 text-center">
+                        วันที่มีรูปหัวใจ
+                        <div class="w-8 h-8 md:w-12 md:h-12 bg-white rounded-full border-[2px] md:border-[3px] border-black flex items-center justify-center shadow-sm relative ml-1 transform rotate-12">
+                            <i class="ph-fill ph-heart text-xl md:text-2xl text-red-500"></i>
+                            <div class="absolute -bottom-[4px] -left-[2px] w-3 h-3 md:w-4 md:h-4 bg-white border-l-[2px] md:border-l-[3px] border-b-[2px] md:border-b-[3px] border-black transform rotate-[-30deg]"></div>
+                        </div>
+                    </h3>
+                    <h3 class="text-xl md:text-[26px] lg:text-[32px] font-black text-gray-900 mt-1">
+                        เป็นวันที่มีเรียนนะคะ
+                    </h3>
+                </div>
+
+                <div class="w-full mb-6 md:mb-8 relative group">
+                    <input type="text" id="class-time-input" value="10.30 - 12.00 น." oninput="updateState('classTime', this.value)" class="w-full text-center text-2xl md:text-3xl lg:text-[40px] font-black text-rose-600 bg-transparent border-2 border-dashed border-transparent hover:border-gray-300 rounded-2xl py-2 md:py-3 focus:outline-none focus:border-rose-400 focus:bg-rose-50 transition-all font-mali hide-cursor-when-not-admin" readonly>
+                </div>
+
+                <div class="w-full relative group mb-6 md:mb-8 flex-grow flex justify-center">
+                    <textarea id="quote-input" rows="4" oninput="updateState('quote', this.value)" class="w-full max-w-[280px] text-center text-lg md:text-xl lg:text-2xl font-bold text-gray-700 leading-relaxed bg-transparent border-2 border-dashed border-transparent hover:border-gray-300 rounded-2xl p-2 md:p-4 focus:outline-none focus:border-blue-400 focus:bg-blue-50 transition-all resize-none overflow-hidden font-mali hide-cursor-when-not-admin" readonly>การเรียนแม้เหนื่อยยาก&#10;ยอมลำบากอย่าท้อถอย&#10;สุดทางที่รอคอย&#10;คืออนาคตอันงดงาม</textarea>
+                </div>
+
+                <div id="img-bottom-right" class="w-full flex justify-center items-end mt-auto gap-3 pb-4 z-10 h-32 md:h-40 lg:h-52">
+                    <span class="text-4xl md:text-[50px] drop-shadow-xl mb-8 md:mb-12 animate-bounce-slow">✨</span>
+                    <div class="text-[60px] md:text-[85px] z-10 drop-shadow-2xl">📖</div>
+                    <span class="text-3xl md:text-[40px] drop-shadow-xl mb-4 md:mb-6 ml-2 transform rotate-12">✏️</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- แถบติดต่อ -->
+        <div class="px-4 md:px-6 lg:px-8 mt-2 md:mt-4">
+            <div class="bg-rose-50 border-[2px] md:border-[3px] border-rose-200 rounded-xl md:rounded-2xl p-3 md:p-4 flex flex-col md:flex-row justify-center items-center gap-3 md:gap-10 shadow-sm relative">
+               <div class="flex items-center gap-2 font-bold text-gray-700 text-base md:text-lg lg:text-xl">
+                 <span class="text-xl md:text-2xl drop-shadow-sm">📞</span> โทร: 
+                 <input type="text" id="contact-tel" value="0646195645" oninput="updateState('contactInfo', {tel: this.value})" class="bg-transparent border-b-2 border-dashed border-transparent hover:border-gray-300 focus:border-rose-400 focus:outline-none w-28 md:w-32 font-mali text-rose-600 hide-cursor-when-not-admin" readonly>
+               </div>
+               <div class="flex items-center gap-2 font-bold text-gray-700 text-base md:text-lg lg:text-xl">
+                 <span class="text-xl md:text-2xl drop-shadow-sm">📘</span> FB: 
+                 <input type="text" id="contact-fb" value="Noon Supanuch" oninput="updateState('contactInfo', {fb: this.value})" class="bg-transparent border-b-2 border-dashed border-transparent hover:border-gray-300 focus:border-rose-400 focus:outline-none w-32 md:w-40 font-mali text-blue-600 hide-cursor-when-not-admin" readonly>
+               </div>
+               <div class="flex items-center gap-2 font-bold text-gray-700 text-base md:text-lg lg:text-xl">
+                 <span class="text-xl md:text-2xl drop-shadow-sm">📱</span> ID: 
+                 <input type="text" id="contact-line" value="noon_supanuch" oninput="updateState('contactInfo', {line: this.value})" class="bg-transparent border-b-2 border-dashed border-transparent hover:border-gray-300 focus:border-rose-400 focus:outline-none w-28 md:w-36 font-mali text-green-600 hide-cursor-when-not-admin" readonly>
+               </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ส่วนจัดการ (เฉพาะ Admin) -->
+    <div id="admin-management-section" class="hidden">
+        <div class="max-w-6xl w-full mx-auto mt-8 grid grid-cols-1 lg:grid-cols-2 gap-6 md:gap-8 animate-fade-in">
+            <!-- จัดการรายชื่อนักเรียน -->
+            <div class="bg-white p-5 md:p-8 rounded-3xl md:rounded-[32px] shadow-lg border-[2px] md:border-[3px] border-gray-100">
+                <h3 class="text-xl md:text-2xl lg:text-3xl font-bold mb-4 md:mb-6 flex items-center gap-3 text-gray-800 border-b-2 border-dashed border-gray-200 pb-3 md:pb-4">
+                    <div class="bg-blue-100 p-2 md:p-3 rounded-xl md:rounded-2xl border-2 border-blue-200"><i class="ph ph-user-plus text-blue-600 text-2xl md:text-3xl"></i></div>
+                    รายชื่อนักเรียน
+                </h3>
+                
+                <div class="flex flex-col sm:flex-row gap-3 mb-4 md:mb-6">
+                    <input type="text" id="new-student-name" placeholder="พิมพ์ชื่อนักเรียน แล้วกดเพิ่ม..." class="flex-grow px-4 md:px-5 py-3 md:py-3.5 bg-gray-50 border-2 border-gray-200 rounded-xl md:rounded-2xl focus:outline-none focus:border-blue-500 focus:bg-white transition-colors text-lg md:text-xl font-mali" onkeypress="if(event.key === 'Enter') addStudent()">
+                    <button onclick="addStudent()" class="bg-blue-600 text-white px-6 md:px-8 py-3 md:py-3.5 rounded-xl md:rounded-2xl hover:bg-blue-700 transition font-bold shadow-md whitespace-nowrap text-lg md:text-xl border-[2px] md:border-[3px] border-blue-800">เพิ่มชื่อ</button>
+                </div>
+
+                <div id="student-list" class="space-y-2 md:space-y-3 max-h-[300px] md:max-h-[350px] overflow-y-auto pr-2 custom-scrollbar">
+                    <!-- JS renders students -->
+                </div>
+            </div>
+
+            <!-- เช็คชื่อประจำวัน -->
+            <div id="attendance-panel" class="bg-gray-50 border-gray-100 p-5 md:p-8 rounded-3xl md:rounded-[32px] shadow-lg border-[2px] md:border-[3px] transition-all duration-300">
+                <h3 class="text-xl md:text-2xl lg:text-3xl font-bold mb-4 md:mb-6 flex items-center gap-3 text-gray-800 border-b-2 border-dashed border-gray-200 pb-3 md:pb-4">
+                    <div id="attendance-icon-bg" class="bg-gray-200 border-gray-300 p-2 md:p-3 rounded-xl md:rounded-2xl border-2">
+                        <i id="attendance-icon" class="ph ph-check-circle text-gray-500 text-2xl md:text-3xl"></i>
+                    </div>
+                    ระบบเช็คชื่อรายวัน
+                </h3>
+
+                <div id="attendance-content">
+                    <!-- JS renders attendance state -->
+                </div>
+            </div>
+        </div>
+
+        <!-- ระบบการจ่ายเงิน -->
+        <div class="max-w-6xl w-full mx-auto mt-6 md:mt-8 bg-amber-50 p-5 md:p-8 rounded-3xl md:rounded-[32px] shadow-lg border-[2px] md:border-[3px] border-amber-200 animate-fade-in overflow-hidden">
+            <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 md:mb-6 border-b-2 border-dashed border-amber-200 pb-4 gap-4">
+                <h3 class="text-xl md:text-2xl lg:text-3xl font-bold flex items-center gap-2 md:gap-3 text-amber-900">
+                    <div class="bg-amber-200 p-2 md:p-3 rounded-xl md:rounded-2xl border-2 border-amber-300"><i class="ph ph-currency-dollar text-amber-700 text-2xl md:text-3xl"></i></div>
+                    บัญชีค่าเรียน <span class="text-sm md:text-base font-normal">(เฉพาะแอดมิน)</span>
+                </h3>
+                <div class="flex flex-col sm:flex-row gap-2 md:gap-3 w-full md:w-auto">
+                    <div class="bg-white px-3 md:px-4 py-2 rounded-lg md:rounded-xl border-2 border-amber-200 flex items-center justify-between gap-2 shadow-sm w-full md:w-auto">
+                        <span class="font-bold text-amber-800 text-sm md:text-base">ค่าเรียน/คน:</span>
+                        <input type="number" id="default-fee" value="1500" onchange="updateState('defaultFee', Number(this.value)); renderPayments()" class="w-16 md:w-20 text-center font-bold text-amber-900 focus:outline-none border-b-2 border-amber-300 bg-transparent text-base md:text-lg">
+                        <span class="font-bold text-amber-800 text-sm md:text-base">บาท</span>
+                    </div>
+                    <button onclick="exportCSV()" class="bg-emerald-500 text-white px-3 md:px-4 py-2 md:py-2.5 rounded-lg md:rounded-xl hover:bg-emerald-600 font-bold flex items-center justify-center gap-2 shadow-sm border-[2px] md:border-[3px] border-emerald-700 transition w-full md:w-auto">
+                        <i class="ph ph-download text-lg md:text-xl"></i> ส่งออก (CSV)
+                    </button>
+                </div>
+            </div>
+
+            <div class="overflow-x-auto custom-scrollbar bg-white rounded-xl md:rounded-2xl border-2 border-amber-200">
+                <table class="w-full min-w-[600px] border-collapse">
+                    <thead>
+                        <tr class="bg-amber-200/50">
+                            <th class="py-3 md:py-4 px-2 md:px-4 border-b-2 border-amber-200 text-amber-900 w-12 md:w-16 text-center text-sm md:text-base">ลำดับ</th>
+                            <th class="py-3 md:py-4 px-2 md:px-4 border-b-2 border-amber-200 text-amber-900 text-left text-sm md:text-base">ชื่อนักเรียน</th>
+                            <th class="py-3 md:py-4 px-2 md:px-4 border-b-2 border-amber-200 text-amber-900 text-center text-sm md:text-base">สถานะ</th>
+                            <th class="py-3 md:py-4 px-2 md:px-4 border-b-2 border-amber-200 text-amber-900 w-32 md:w-40 text-center text-sm md:text-base">จำนวน (บาท)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="payment-list">
+                        <!-- JS renders payments -->
+                    </tbody>
+                    <tfoot>
+                        <tr class="bg-amber-100 border-t-2 border-amber-300">
+                            <td colspan="3" class="py-4 md:py-5 px-4 md:px-6 text-right font-black text-amber-900 text-lg md:text-xl lg:text-2xl">รวมรายรับ</td>
+                            <td id="payment-total" class="py-4 md:py-5 px-2 md:px-4 text-center font-black text-emerald-600 text-xl md:text-2xl lg:text-3xl bg-green-50 border-l-2 border-amber-300">
+                                ฿ 0
+                            </td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- สรุปสถิติ (ทุกคนเห็น) -->
+    <div class="max-w-6xl w-full mx-auto mt-6 md:mt-8 bg-gradient-to-br from-pink-100 to-rose-100 p-5 md:p-8 lg:p-10 rounded-3xl md:rounded-[40px] shadow-[0_8px_30px_rgb(0,0,0,0.12)] border-[4px] md:border-[6px] border-white relative overflow-hidden mb-10">
+        <div class="absolute top-[-20px] right-[-20px] text-[80px] md:text-[120px] opacity-20 transform rotate-12 pointer-events-none">📊</div>
+        <div class="absolute bottom-[-20px] left-[-20px] text-[80px] md:text-[120px] opacity-20 transform -rotate-12 pointer-events-none">🌟</div>
+        
+        <h3 class="text-2xl md:text-3xl lg:text-4xl font-black mb-6 md:mb-8 text-rose-800 flex flex-col md:flex-row items-center gap-3 md:gap-4 drop-shadow-sm z-10 relative text-center md:text-left border-b-[2px] md:border-b-[3px] border-white/50 pb-4 md:pb-6">
+            <div class="bg-white p-3 md:p-4 rounded-2xl md:rounded-3xl shadow-sm border-[2px] md:border-[3px] border-rose-200 transform -rotate-6">
+                <i class="ph-fill ph-heart text-3xl md:text-4xl text-rose-500"></i>
+            </div>
+            สรุปสถิติเดือน<span id="stats-month-name"></span>
+            <span class="text-sm md:text-xl bg-rose-500 text-white px-4 md:px-6 py-2 md:py-2.5 rounded-full md:ml-auto shadow-md border-[2px] md:border-[3px] border-white mt-3 md:mt-0" id="stats-time-display">
+                รอบ: 10.30 - 12.00 น.
+            </span>
+        </h3>
+
+        <div id="stats-content" class="z-10 relative">
+            <!-- JS renders stats -->
+        </div>
+    </div>
+
+    <script>
+        // --- State Management ---
+        const state = {
+            isAdmin: false,
+            currentDate: new Date(),
+            selectedDate: null,
+            teacherName: 'นุ่น',
+            classTime: '10.30 - 12.00 น.',
+            quote: 'การเรียนแม้เหนื่อยยาก\nยอมลำบากอย่าท้อถอย\nสุดทางที่รอคอย\nคืออนาคตอันงดงาม',
+            headerColor: '#ef4444',
+            teacherNameColor: '#fde047',
+            cellColors: {}, // { '2023-10-01': '#ffcccc' }
+            customImages: { topLeft: null, topRight: null, bottomRight: null },
+            contactInfo: { tel: '0646195645', fb: 'Noon Supanuch', line: 'noon_supanuch' },
+            students: [
+                { id: 1, name: 'ด.ช. สมชาย รักเรียน' },
+                { id: 2, name: 'ด.ญ. สมหญิง ขยันดี' },
+                { id: 3, name: 'ด.ช. มานะ อดทน' }
+            ],
+            classDays: new Set(),
+            attendance: {}, // { '2023-10-01': [1, 2] }
+            payments: {}, // { '2023-10': { 1: {status: 'pending', amount: 1500} } }
+            defaultFee: 1500
+        };
+
+        const monthNames = ["มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน", "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"];
+
+        // --- Utils ---
+        const getCurrentMonthKey = () => `${state.currentDate.getFullYear()}-${state.currentDate.getMonth()}`;
+        const formatDate = (y, m, d) => `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+
+        // --- Core UI Updates ---
+        function updateState(key, value) {
+            if(key === 'contactInfo') {
+                state.contactInfo = { ...state.contactInfo, ...value };
+            } else {
+                state[key] = value;
+            }
+            if(key === 'classTime') document.getElementById('stats-time-display').innerText = `รอบ: ${state.classTime}`;
+        }
+
+        function renderAll() {
+            renderHeader();
+            renderCalendar();
+            renderStudents();
+            renderAttendance();
+            renderPayments();
+            renderStats();
+            updateAdminUI();
+        }
+
+        function renderHeader() {
+            const m = state.currentDate.getMonth();
+            const y = state.currentDate.getFullYear();
+            document.getElementById('month-year-display').innerText = `${monthNames[m]} ${y + 543}`;
+            document.getElementById('header-month-text').innerText = monthNames[m];
+            document.getElementById('stats-month-name').innerText = monthNames[m];
+        }
+
+        function changeMonth(offset) {
+            state.currentDate.setMonth(state.currentDate.getMonth() + offset);
+            state.selectedDate = null;
+            renderAll();
+        }
+
+        // --- Calendar Logic ---
+        function renderCalendar() {
+            const y = state.currentDate.getFullYear();
+            const m = state.currentDate.getMonth();
+            const firstDay = new Date(y, m, 1).getDay();
+            const daysInMonth = new Date(y, m + 1, 0).getDate();
+            const startingDay = (firstDay + 6) % 7; // Monday = 0
+
+            const grid = document.getElementById('calendar-grid');
+            grid.innerHTML = '';
+
+            for (let i = 0; i < startingDay; i++) {
+                grid.innerHTML += `<div class="bg-gray-50 h-[80px] sm:h-24 md:h-[130px] border-b-[2px] md:border-b-[3px] border-r-[2px] md:border-r-[3px] border-black"></div>`;
+            }
+
+            for (let i = 1; i <= daysInMonth; i++) {
+                const dateStr = formatDate(y, m, i);
+                const dayOfWeek = (startingDay + i - 1) % 7;
+                
+                let bgClass = "bg-white";
+                if (dayOfWeek === 5) bgClass = "bg-[#e9d5ff]"; // Sat
+                if (dayOfWeek === 6) bgClass = "bg-[#fecaca]"; // Sun
+                
+                const customColor = state.cellColors[dateStr];
+                const bgStyle = customColor ? `background-color: ${customColor};` : '';
+                
+                const isSelected = state.selectedDate === dateStr;
+                const isClassDay = state.classDays.has(dateStr);
+                const attendedCount = (state.attendance[dateStr] || []).length;
+                
+                let extraClasses = isSelected ? (state.isAdmin ? 'ring-[3px] ring-inset ring-blue-400 z-10 bg-blue-50/50' : 'bg-blue-50/50') : 'hover:bg-gray-50/50 cursor-pointer';
+
+                let content = `
+                    <div onclick="selectDate('${dateStr}')" class="${!customColor ? bgClass : ''} h-[80px] sm:h-24 md:h-[130px] relative border-b-[2px] md:border-b-[3px] border-r-[2px] md:border-r-[3px] border-black transition-all ${extraClasses}" style="${bgStyle}">
+                        <span class="absolute top-1 left-1 md:top-2 md:left-2 text-lg sm:text-xl md:text-3xl font-black ${dayOfWeek === 6 ? 'text-red-700' : (dayOfWeek === 5 ? 'text-purple-800' : 'text-gray-800')}">${i}</span>
+                `;
+
+                if (isClassDay) {
+                    content += `
+                        <div class="absolute top-1 right-1 md:top-2 md:right-2 lg:top-3 lg:right-3 w-6 h-6 sm:w-8 sm:h-8 md:w-10 md:h-10 lg:w-12 lg:h-12 bg-white rounded-full border-[2px] md:border-[3px] border-black flex items-center justify-center shadow-sm z-20">
+                            <i class="ph-fill ph-heart text-red-500 text-sm sm:text-base md:text-xl lg:text-2xl mt-[2px]"></i>
+                            <div class="absolute -bottom-[3px] md:-bottom-[5px] -left-[2px] w-2 h-2 md:w-3 md:h-3 bg-white border-l-[2px] md:border-l-[3px] border-b-[2px] md:border-b-[3px] border-black transform rotate-[-30deg]"></div>
+                        </div>
+                    `;
+                }
+
+                if (attendedCount > 0) {
+                    content += `
+                        <div class="absolute bottom-1 right-1 md:bottom-2 md:right-2 text-[10px] sm:text-xs md:text-sm font-bold bg-green-100 border md:border-2 border-green-500 text-green-700 px-1 md:px-2 rounded-lg md:rounded-xl shadow-sm z-20">
+                            มา ${attendedCount}/${state.students.length}
+                        </div>
+                    `;
+                }
+
+                if (state.isAdmin && isSelected) {
+                    content += `
+                        <div class="absolute bottom-1 left-1 hide-on-print bg-white p-1 rounded-md border border-gray-300 shadow-lg z-30 flex items-center" onclick="event.stopPropagation()">
+                            <input type="color" value="${customColor || '#ffffff'}" onchange="changeCellColor('${dateStr}', this.value)" class="w-4 h-4 md:w-5 md:h-5 rounded cursor-pointer border-0 p-0">
+                        </div>
+                    `;
+                }
+
+                content += `</div>`;
+                grid.innerHTML += content;
+            }
+        }
+
+        function selectDate(dateStr) {
+            state.selectedDate = dateStr;
+            renderCalendar();
+            renderAttendance();
+        }
+
+        function changeCellColor(dateStr, color) {
+            state.cellColors[dateStr] = color;
+            renderCalendar();
+        }
+
+        // --- Admin Handlers ---
+        function toggleAdminModal() {
+            if(state.isAdmin) {
+                state.isAdmin = false;
+                state.selectedDate = null;
+                updateAdminUI();
+                renderAll();
+            } else {
+                document.getElementById('login-modal').classList.remove('hidden');
+                document.getElementById('login-modal').classList.add('flex');
+                document.getElementById('password-input').focus();
+            }
+        }
+
+        function closeLoginModal() {
+            document.getElementById('login-modal').classList.add('hidden');
+            document.getElementById('login-modal').classList.remove('flex');
+            document.getElementById('login-error').classList.add('hidden');
+            document.getElementById('password-input').value = '';
+        }
+
+        function handleLogin() {
+            const pwd = document.getElementById('password-input').value;
+            if(pwd === 'Noon@452656') {
+                state.isAdmin = true;
+                closeLoginModal();
+                updateAdminUI();
+                renderAll();
+            } else {
+                document.getElementById('login-error').classList.remove('hidden');
+            }
+        }
+
+        document.getElementById('admin-toggle-btn').addEventListener('click', toggleAdminModal);
+
+        function updateAdminUI() {
+            const btn = document.getElementById('admin-toggle-btn');
+            const tools = document.getElementById('admin-tools');
+            const adminSection = document.getElementById('admin-management-section');
+            const inputs = document.querySelectorAll('.hide-cursor-when-not-admin');
+
+            if (state.isAdmin) {
+                btn.innerHTML = `<i class="ph ph-lock-open text-lg"></i> <span>ออกจากโหมดแอดมิน</span>`;
+                btn.className = "flex items-center gap-2 bg-gray-100 text-gray-700 px-5 py-2.5 rounded-xl hover:bg-gray-200 transition font-bold border-2 border-gray-200 shadow-sm";
+                tools.classList.remove('hidden');
+                tools.classList.add('flex');
+                adminSection.classList.remove('hidden');
+                
+                inputs.forEach(el => { el.removeAttribute('readonly'); el.classList.add('border-dashed', 'border-gray-300'); el.classList.remove('border-transparent'); });
+            } else {
+                btn.innerHTML = `<i class="ph ph-lock text-lg"></i> <span>สำหรับแอดมิน</span>`;
+                btn.className = "flex items-center gap-2 bg-rose-100 text-rose-700 px-5 py-2.5 rounded-xl hover:bg-rose-200 transition font-bold border-2 border-rose-200 shadow-sm";
+                tools.classList.add('hidden');
+                tools.classList.remove('flex');
+                adminSection.classList.add('hidden');
+
+                inputs.forEach(el => { el.setAttribute('readonly', true); el.classList.remove('border-dashed', 'border-gray-300'); el.classList.add('border-transparent'); });
+            }
+        }
+
+        function updateColors() {
+            state.headerColor = document.getElementById('header-color').value;
+            state.teacherNameColor = document.getElementById('teacher-color').value;
+            document.getElementById('schedule-header').style.backgroundColor = state.headerColor;
+            document.getElementById('teacher-name-input').style.color = state.teacherNameColor;
+        }
+
+        function uploadImage(e, position) {
+            const file = e.target.files[0];
+            if(file) {
+                const url = URL.createObjectURL(file);
+                state.customImages[position] = url;
+                renderImages();
+                const iconMap = {topLeft: 'check-tl', topRight: 'check-tr', bottomRight: 'check-br'};
+                document.getElementById(iconMap[position]).classList.remove('hidden');
+            }
+        }
+
+        function removeImage(position) {
+            state.customImages[position] = null;
+            renderImages();
+            const iconMap = {topLeft: 'check-tl', topRight: 'check-tr', bottomRight: 'check-br'};
+            document.getElementById(iconMap[position]).classList.add('hidden');
+        }
+
+        function renderImages() {
+            const tl = document.getElementById('img-top-left');
+            if(state.customImages.topLeft) {
+                tl.innerHTML = `<img src="${state.customImages.topLeft}" alt="img" class="h-16 sm:h-24 md:h-32 object-contain drop-shadow-xl" />`;
+            } else {
+                tl.innerHTML = `<div class="hidden md:flex items-end opacity-90 drop-shadow-lg"><span class="text-5xl md:text-6xl z-10 transform -rotate-12">🎒</span></div>`;
+            }
+
+            const tr = document.getElementById('img-top-right');
+            if(state.customImages.topRight) {
+                tr.innerHTML = `<img src="${state.customImages.topRight}" alt="img" class="h-16 sm:h-24 md:h-32 object-contain drop-shadow-xl" />`;
+            } else {
+                tr.innerHTML = `<div class="hidden md:flex items-end opacity-90 drop-shadow-lg"><span class="text-5xl md:text-6xl z-10 transform rotate-12">📝</span></div>`;
+            }
+
+            const br = document.getElementById('img-bottom-right');
+            if(state.customImages.bottomRight) {
+                br.innerHTML = `<img src="${state.customImages.bottomRight}" alt="img" class="h-32 md:h-40 lg:h-52 object-contain drop-shadow-2xl" />`;
+            } else {
+                br.innerHTML = `
+                    <span class="text-3xl md:text-[50px] drop-shadow-xl mb-8 md:mb-12 animate-bounce-slow">✨</span>
+                    <div class="text-[50px] md:text-[85px] z-10 drop-shadow-2xl">📖</div>
+                    <span class="text-2xl md:text-[40px] drop-shadow-xl mb-4 md:mb-6 ml-2 transform rotate-12">✏️</span>
+                `;
+            }
+        }
+
+        // --- Students ---
+        function addStudent() {
+            const input = document.getElementById('new-student-name');
+            const name = input.value.trim();
+            if(!name) return;
+            const newId = state.students.length > 0 ? Math.max(...state.students.map(s => s.id)) + 1 : 1;
+            state.students.push({ id: newId, name });
+            input.value = '';
+            renderAll();
+        }
+
+        function removeStudent(id) {
+            state.students = state.students.filter(s => s.id !== id);
+            for(let date in state.attendance) {
+                state.attendance[date] = state.attendance[date].filter(sid => sid !== id);
+            }
+            renderAll();
+        }
+
+        function renderStudents() {
+            const list = document.getElementById('student-list');
+            list.innerHTML = '';
+            if(state.students.length === 0) {
+                list.innerHTML = `<div class="text-center text-gray-400 py-6 md:py-10 font-medium text-base md:text-lg">ยังไม่มีรายชื่อนักเรียน เพิ่มชื่อด้านบนได้เลยครับ</div>`;
+                return;
+            }
+            state.students.forEach((s, idx) => {
+                list.innerHTML += `
+                    <div class="flex justify-between items-center bg-gray-50 p-3 md:p-4 rounded-xl md:rounded-2xl border-2 border-gray-200 hover:border-blue-300 transition-colors">
+                        <span class="font-bold text-gray-700 text-lg md:text-xl">${idx + 1}. ${s.name}</span>
+                        <button onclick="removeStudent(${s.id})" class="bg-white text-red-500 p-2 md:p-2.5 rounded-lg md:rounded-xl border-2 border-gray-200 hover:border-red-500 hover:bg-red-500 hover:text-white transition-all shadow-sm" title="ลบนักเรียน">
+                            <i class="ph ph-trash text-lg md:text-xl"></i>
+                        </button>
+                    </div>
+                `;
+            });
+        }
+
+        // --- Attendance ---
+        function toggleClassDay(dateStr) {
+            if(state.classDays.has(dateStr)) state.classDays.delete(dateStr);
+            else state.classDays.add(dateStr);
+            renderCalendar();
+            renderAttendance();
+            renderStats();
+        }
+
+        function toggleAttendance(dateStr, studentId) {
+            if(!state.attendance[dateStr]) state.attendance[dateStr] = [];
+            const arr = state.attendance[dateStr];
+            if(arr.includes(studentId)) {
+                state.attendance[dateStr] = arr.filter(id => id !== studentId);
+            } else {
+                arr.push(studentId);
+            }
+            renderCalendar();
+            renderAttendance();
+            renderStats();
+        }
+
+        function renderAttendance() {
+            const panel = document.getElementById('attendance-panel');
+            const iconBg = document.getElementById('attendance-icon-bg');
+            const icon = document.getElementById('attendance-icon');
+            const content = document.getElementById('attendance-content');
+            const dateStr = state.selectedDate;
+
+            if(!dateStr) {
+                panel.className = "bg-gray-50 border-gray-100 p-5 md:p-8 rounded-3xl md:rounded-[32px] shadow-lg border-[2px] md:border-[3px] transition-all duration-300";
+                iconBg.className = "bg-gray-200 border-gray-300 p-2 md:p-3 rounded-xl md:rounded-2xl border-2";
+                icon.className = "ph ph-check-circle text-gray-500 text-2xl md:text-3xl";
+                
+                content.innerHTML = `
+                    <div class="text-center text-gray-400 py-12 md:py-20 flex flex-col items-center bg-gray-100/50 rounded-2xl md:rounded-3xl border-[2px] md:border-[3px] border-dashed border-gray-300">
+                        <span class="text-4xl md:text-6xl mb-4 grayscale opacity-50 animate-bounce">👆</span>
+                        <p class="text-xl md:text-2xl font-bold mb-2 text-gray-500">ยังไม่ได้เลือกวันที่</p>
+                        <p class="text-sm md:text-lg">คลิกเลือกวันที่บนตารางด้านบน<br/>เพื่อจัดตารางและเช็คชื่อ</p>
+                    </div>
+                `;
+                return;
+            }
+
+            panel.className = "bg-white border-green-200 p-5 md:p-8 rounded-3xl md:rounded-[32px] shadow-lg border-[2px] md:border-[3px] transition-all duration-300";
+            iconBg.className = "bg-green-100 border-green-200 p-2 md:p-3 rounded-xl md:rounded-2xl border-2";
+            icon.className = "ph-fill ph-check-circle text-green-600 text-2xl md:text-3xl";
+
+            const dateObj = new Date(dateStr);
+            const dateDisplay = dateObj.toLocaleDateString('th-TH', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+            const isClass = state.classDays.has(dateStr);
+
+            let html = `
+                <div class="flex flex-col sm:flex-row justify-between items-center gap-3 md:gap-4 mb-4 md:mb-6 bg-blue-50 p-4 md:p-5 rounded-2xl md:rounded-3xl border-[2px] md:border-[3px] border-blue-100">
+                    <span class="font-black text-blue-900 text-lg md:text-2xl text-center sm:text-left">${dateDisplay}</span>
+                    <button onclick="toggleClassDay('${dateStr}')" class="flex items-center justify-center w-full sm:w-auto gap-2 px-4 md:px-6 py-2.5 md:py-3.5 rounded-xl md:rounded-2xl font-bold transition-all shadow-sm text-base md:text-lg ${isClass ? 'bg-red-500 text-white hover:bg-red-600 border-[2px] md:border-[3px] border-black' : 'bg-white text-gray-700 hover:bg-gray-100 border-[2px] md:border-[3px] border-gray-300'}">
+                        <i class="${isClass ? 'ph-fill' : 'ph'} ph-heart text-xl md:text-2xl ${!isClass && 'text-gray-400'}"></i>
+                        ${isClass ? 'ยกเลิกคลาสเรียน' : 'ตั้งเป็นวันที่มีเรียน'}
+                    </button>
+                </div>
+            `;
+
+            if(isClass) {
+                html += `
+                    <div class="space-y-2 md:space-y-3 bg-green-50/50 p-4 md:p-5 rounded-2xl md:rounded-3xl border-[2px] md:border-[3px] border-green-100">
+                        <p class="font-bold text-green-800 mb-3 md:mb-4 flex items-center gap-2 text-base md:text-lg">
+                            <span class="bg-green-200 px-2 md:px-3 py-1 rounded-lg md:rounded-xl text-xs md:text-sm border border-green-300">ติ๊กเพื่อเช็คชื่อ</span>
+                            รายชื่อนักเรียน
+                        </p>
+                        <div class="space-y-2 md:space-y-3 max-h-[200px] md:max-h-[250px] overflow-y-auto pr-2 custom-scrollbar">
+                `;
+                state.students.forEach(s => {
+                    const isAttended = (state.attendance[dateStr] || []).includes(s.id);
+                    html += `
+                        <div onclick="toggleAttendance('${dateStr}', ${s.id})" class="flex items-center gap-3 md:gap-4 p-3 md:p-4 rounded-xl md:rounded-2xl cursor-pointer transition-all border-[2px] md:border-[3px] ${isAttended ? 'bg-white border-green-500 shadow-[4px_4px_0_#22c55e]' : 'bg-white border-gray-200 hover:border-blue-300 hover:shadow-sm text-gray-500'}">
+                            <i class="${isAttended ? 'ph-fill ph-check-circle text-green-500' : 'ph ph-circle text-gray-300'} text-2xl md:text-3xl flex-shrink-0"></i>
+                            <span class="font-bold text-lg md:text-xl ${isAttended ? 'text-green-700' : ''}">${s.name}</span>
+                        </div>
+                    `;
+                });
+                html += `</div></div>`;
+            } else {
+                html += `
+                    <div class="text-center py-10 md:py-16 text-gray-500 bg-white rounded-2xl md:rounded-3xl border-[2px] md:border-[3px] border-dashed border-gray-300">
+                        <span class="text-4xl md:text-6xl mb-3 md:mb-4 block opacity-50">📴</span>
+                        <p class="font-bold text-xl md:text-2xl">ไม่มีการเรียนการสอน</p>
+                        <p class="text-sm md:text-lg mt-2 text-gray-400">กดปุ่ม "ตั้งเป็นวันที่มีเรียน" เพื่อเปิดระบบเช็คชื่อ</p>
+                    </div>
+                `;
+            }
+            content.innerHTML = html;
+        }
+
+        // --- Payments ---
+        function handlePaymentChange(studentId, field, value) {
+            const key = getCurrentMonthKey();
+            if(!state.payments[key]) state.payments[key] = {};
+            if(!state.payments[key][studentId]) state.payments[key][studentId] = { status: 'pending', amount: state.defaultFee };
+            state.payments[key][studentId][field] = value;
+            renderPayments();
+        }
+
+        function renderPayments() {
+            const list = document.getElementById('payment-list');
+            const totalEl = document.getElementById('payment-total');
+            const key = getCurrentMonthKey();
+            const pData = state.payments[key] || {};
+            
+            list.innerHTML = '';
+            let total = 0;
+
+            if(state.students.length === 0) {
+                list.innerHTML = `<tr><td colspan="4" class="text-center py-6 md:py-8 text-amber-600 font-bold text-base md:text-lg">ยังไม่มีรายชื่อนักเรียนในระบบ</td></tr>`;
+                totalEl.innerText = "฿ 0";
+                return;
+            }
+
+            state.students.forEach((s, idx) => {
+                const data = pData[s.id] || { status: 'pending', amount: state.defaultFee };
+                const isPending = data.status === 'pending';
+                if(!isPending) total += Number(data.amount);
+
+                list.innerHTML += `
+                    <tr class="hover:bg-amber-50/50 transition border-b border-amber-100">
+                        <td class="py-2 md:py-3 px-2 md:px-4 text-center font-bold text-gray-600 text-sm md:text-base">${idx + 1}</td>
+                        <td class="py-2 md:py-3 px-2 md:px-4 font-bold text-gray-800 text-base md:text-lg">${s.name}</td>
+                        <td class="py-2 md:py-3 px-2 md:px-4 text-center">
+                            <select onchange="handlePaymentChange(${s.id}, 'status', this.value)" class="p-1.5 md:p-2.5 rounded-lg md:rounded-xl font-bold border-2 focus:outline-none cursor-pointer w-full max-w-[200px] text-xs md:text-sm transition-colors ${data.status === 'before' ? 'bg-green-100 border-green-300 text-green-700' : data.status === 'after' ? 'bg-blue-100 border-blue-300 text-blue-700' : 'bg-gray-50 border-gray-200 text-gray-500'}">
+                                <option value="pending" ${data.status === 'pending'?'selected':''}>⏳ รอชำระ</option>
+                                <option value="before" ${data.status === 'before'?'selected':''}>✅ ก่อนเรียน</option>
+                                <option value="after" ${data.status === 'after'?'selected':''}>☑️ หลังเรียน</option>
+                            </select>
+                        </td>
+                        <td class="py-2 md:py-3 px-2 md:px-4 text-center">
+                            <input type="number" onchange="handlePaymentChange(${s.id}, 'amount', this.value)" value="${data.amount}" ${isPending ? 'disabled' : ''} class="w-full text-center font-bold p-1.5 md:p-2.5 rounded-lg md:rounded-xl border-2 focus:outline-none transition-colors text-sm md:text-lg ${isPending ? 'bg-gray-50 border-gray-100 text-gray-400 cursor-not-allowed' : 'bg-white border-amber-200 text-amber-700'}">
+                        </td>
+                    </tr>
+                `;
+            });
+            totalEl.innerText = `฿ ${total.toLocaleString()}`;
+        }
+
+        // --- Statistics ---
+        function renderStats() {
+            const content = document.getElementById('stats-content');
+            const y = state.currentDate.getFullYear();
+            const m = state.currentDate.getMonth();
+            
+            const monthClassDays = Array.from(state.classDays).filter(dStr => {
+                const d = new Date(dStr);
+                return d.getFullYear() === y && d.getMonth() === m;
+            });
+            const totalDays = monthClassDays.length;
+
+            if(totalDays === 0) {
+                content.innerHTML = `
+                    <div class="text-center bg-white/80 backdrop-blur-sm p-8 md:p-12 rounded-[24px] md:rounded-[32px] border-[2px] md:border-[3px] border-dashed border-rose-300 shadow-sm">
+                        <span class="text-5xl md:text-7xl animate-bounce inline-block mb-3 md:mb-4">😴</span>
+                        <p class="text-rose-700 font-bold text-xl md:text-3xl">เดือนนี้ยังไม่มีการจัดตารางเรียนค่ะ</p>
+                        <p class="text-rose-500 mt-2 md:mt-3 text-base md:text-xl">รอคุณครูอัปเดตตารางเรียนสักครู่นะคะ!</p>
+                    </div>
+                `;
+                return;
+            }
+
+            if(state.students.length === 0) {
+                content.innerHTML = `
+                    <div class="text-center bg-white/80 p-8 md:p-12 rounded-[24px] md:rounded-[32px] border-[2px] md:border-[3px] border-dashed border-rose-300">
+                        <span class="text-5xl md:text-7xl mb-3 md:mb-4 inline-block opacity-70">🤷‍♀️</span>
+                        <p class="text-rose-700 font-bold text-xl md:text-3xl">ยังไม่มีรายชื่อนักเรียนค่ะ</p>
+                    </div>
+                `;
+                return;
+            }
+
+            let html = `<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6 lg:gap-8">`;
+            
+            state.students.forEach(s => {
+                let attended = 0;
+                monthClassDays.forEach(dStr => {
+                    if((state.attendance[dStr] || []).includes(s.id)) attended++;
+                });
+                const missed = totalDays - attended;
+                const pct = (attended / totalDays) * 100;
+                const icon = missed === 0 ? '🏆' : (missed <= 1 ? '👍' : '💪');
+
+                html += `
+                    <div class="bg-white/95 backdrop-blur-sm p-5 md:p-6 lg:p-8 rounded-[24px] md:rounded-[32px] shadow-sm border-[3px] md:border-[4px] border-rose-200 hover:shadow-xl hover:border-rose-400 hover:-translate-y-1 md:hover:-translate-y-2 transition-all duration-300 flex flex-col justify-between group">
+                        <div class="flex justify-between items-start mb-4 md:mb-6">
+                            <span class="font-bold text-gray-800 text-lg md:text-xl lg:text-2xl line-clamp-2 pr-2">${s.name}</span>
+                            <span class="text-3xl md:text-4xl group-hover:scale-125 transition-transform duration-300 origin-center drop-shadow-sm flex-shrink-0">${icon}</span>
+                        </div>
+                        
+                        <div class="bg-rose-50/80 rounded-xl md:rounded-2xl p-4 md:p-5 mb-4 md:mb-6 border-2 border-rose-100">
+                            <div class="flex justify-between items-end mb-2 md:mb-3">
+                                <span class="font-bold text-gray-500 text-base md:text-lg">เข้าเรียน</span>
+                                <div class="text-right">
+                                    <span class="text-3xl md:text-4xl font-black text-rose-600 drop-shadow-sm">${attended}</span>
+                                    <span class="text-gray-400 font-bold text-base md:text-lg"> / ${totalDays} วัน</span>
+                                </div>
+                            </div>
+                            <div class="w-full bg-gray-200 rounded-full h-3 md:h-4 overflow-hidden shadow-inner border border-gray-300">
+                                <div class="bg-gradient-to-r from-green-400 to-emerald-500 h-full rounded-full transition-all duration-1000 ease-out relative border-r-2 border-white/50" style="width: ${pct}%"></div>
+                            </div>
+                        </div>
+
+                        <div class="text-center mt-auto">
+                            ${missed === 0 ? 
+                                `<div class="w-full bg-gradient-to-r from-green-100 to-emerald-100 text-green-800 font-black py-2.5 md:py-3 px-3 md:px-4 rounded-xl md:rounded-2xl border-[2px] md:border-[3px] border-green-200 text-base md:text-lg shadow-sm flex items-center justify-center gap-2"><span class="animate-bounce">✨</span> มาครบ 100%!</div>` 
+                            : 
+                                `<div class="w-full bg-gradient-to-r from-orange-50 to-red-50 text-red-600 font-bold py-2.5 md:py-3 px-3 md:px-4 rounded-xl md:rounded-2xl border-[2px] md:border-[3px] border-red-100 text-base md:text-lg shadow-sm flex items-center justify-center gap-2">😢 ขาดเรียนไป ${missed} วัน</div>`
+                            }
+                        </div>
+                    </div>
+                `;
+            });
+            html += `</div>`;
+            content.innerHTML = html;
+        }
+
+        // --- Exports ---
+        async function exportToImage() {
+            const el = document.getElementById('printable-schedule');
+            if(!window.html2canvas) return;
+
+            // ซ่อนเครื่องมือชั่วคราว
+            el.classList.add('printing');
+            const btn = event.currentTarget;
+            const originalText = btn.innerHTML;
+            btn.innerHTML = `<i class="ph ph-spinner animate-spin text-xl"></i> กำลังบันทึก...`;
+
+            try {
+                const canvas = await html2canvas(el, { scale: window.innerWidth < 768 ? 1.5 : 2, backgroundColor: '#ffffff', useCORS: true });
+                const link = document.createElement('a');
+                link.href = canvas.toDataURL("image/png");
+                link.download = `ตารางเรียนครู${state.teacherName}_เดือน${monthNames[state.currentDate.getMonth()]}.png`;
+                link.click();
+            } catch(e) {
+                console.error("Export failed", e);
+            } finally {
+                el.classList.remove('printing');
+                btn.innerHTML = originalText;
+            }
+        }
+
+        function exportCSV() {
+            const key = getCurrentMonthKey();
+            const pData = state.payments[key] || {};
+            let csv = "\uFEFFลำดับ,ชื่อนักเรียน,สถานะการจ่ายเงิน,จำนวนเงิน (บาท)\n";
+            let total = 0;
+
+            state.students.forEach((s, i) => {
+                const d = pData[s.id] || { status: 'pending', amount: state.defaultFee };
+                let txt = 'ยังไม่จ่าย (รอชำระ)';
+                if(d.status === 'before') txt = 'จ่ายก่อนเรียน';
+                if(d.status === 'after') txt = 'จ่ายหลังเรียน';
+                const amt = d.status === 'pending' ? 0 : Number(d.amount);
+                total += amt;
+                csv += `${i+1},${s.name},${txt},${amt}\n`;
+            });
+            csv += `,,,รวมรายรับทั้งหมด,${total}\n`;
+
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement("a");
+            link.href = URL.createObjectURL(blob);
+            link.download = `บัญชีค่าเรียน_${monthNames[state.currentDate.getMonth()]}_${state.currentDate.getFullYear() + 543}.csv`;
+            link.click();
+        }
+
+        // --- Init ---
+        window.onload = () => {
+            renderAll();
+        };
+    </script>
+</body>
+</html>
