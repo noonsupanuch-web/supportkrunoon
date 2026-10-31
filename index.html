@@ -35,7 +35,7 @@
         
         /* สไตล์สำหรับซ่อนเครื่องมือตอนปริ้นท์ */
         .printing .hide-on-print { display: none !important; }
-        .printing input[type="text"], .printing textarea { border: none !important; background: transparent !important; resize: none; pointer-events: none; }
+        .printing input[type="text"], .printing textarea { border: none !important; background: transparent !important; resize: none; pointer-events: none; overflow: visible !important; color: inherit; }
     </style>
 </head>
 <body class="p-2 md:p-6 text-gray-800 pb-20">
@@ -137,10 +137,10 @@
                 </div>
             </div>
             
-            <h1 class="text-2xl sm:text-3xl md:text-[50px] lg:text-[56px] font-black tracking-wide drop-shadow-[0_4px_4px_rgba(0,0,0,0.5)] flex flex-wrap justify-center items-center gap-2 md:gap-3 z-20 relative text-center">
+            <h1 class="text-[22px] sm:text-3xl md:text-[40px] lg:text-[48px] font-black tracking-wide drop-shadow-[0_4px_4px_rgba(0,0,0,0.5)] flex flex-wrap md:flex-nowrap justify-center items-center gap-1 md:gap-3 z-20 relative text-center leading-tight w-full px-2">
                 ตารางเรียนครู
-                <input type="text" id="teacher-name-input" value="นุ่น" oninput="updateState('teacherName', this.value)" class="bg-transparent border-b-4 border-dashed border-white/40 focus:border-white focus:outline-none text-center w-24 sm:w-32 md:w-56 placeholder-white/70 font-mali transition-colors" style="color: #fde047;" readonly>
-                <span class="ml-0 md:ml-2">เดือน<span id="header-month-text"></span></span>
+                <input type="text" id="teacher-name-input" value="นุ่น" oninput="updateState('teacherName', this.value); this.style.width = (this.value.length * 1.5 + 3) + 'ch';" class="bg-transparent border-b-[3px] border-transparent focus:outline-none text-center placeholder-white/70 font-mali transition-colors hide-cursor-when-not-admin p-0 m-0 max-w-[150px] md:max-w-[300px]" style="color: #fde047; width: 6ch;" readonly>
+                <span class="ml-0 md:ml-1 whitespace-nowrap">เดือน<span id="header-month-text"></span></span>
             </h1>
         </header>
 
@@ -148,41 +148,40 @@
             <!-- Calendar Section -->
             <div class="w-full lg:w-2/3">
                 <div class="grid grid-cols-7 mb-2 md:mb-3 bg-gray-100 rounded-xl md:rounded-2xl border-[2px] md:border-[3px] border-black overflow-hidden shadow-sm">
-                    <div class="text-center font-bold text-xs sm:text-sm md:text-lg lg:text-xl py-2 md:py-3 border-r-[2px] md:border-r-[3px] border-black text-gray-900">จันทร์</div>
-                    <div class="text-center font-bold text-xs sm:text-sm md:text-lg lg:text-xl py-2 md:py-3 border-r-[2px] md:border-r-[3px] border-black text-gray-900">อังคาร</div>
-                    <div class="text-center font-bold text-xs sm:text-sm md:text-lg lg:text-xl py-2 md:py-3 border-r-[2px] md:border-r-[3px] border-black text-gray-900">พุธ</div>
-                    <div class="text-center font-bold text-xs sm:text-sm md:text-lg lg:text-xl py-2 md:py-3 border-r-[2px] md:border-r-[3px] border-black text-gray-900">พฤหัสบดี</div>
-                    <div class="text-center font-bold text-xs sm:text-sm md:text-lg lg:text-xl py-2 md:py-3 border-r-[2px] md:border-r-[3px] border-black text-gray-900">ศุกร์</div>
-                    <div class="text-center font-bold text-xs sm:text-sm md:text-lg lg:text-xl py-2 md:py-3 border-r-[2px] md:border-r-[3px] border-black bg-purple-200 text-gray-900">เสาร์</div>
-                    <div class="text-center font-bold text-xs sm:text-sm md:text-lg lg:text-xl py-2 md:py-3 bg-red-200 text-gray-900">อาทิตย์</div>
+                    <div class="text-center font-bold text-[11px] sm:text-sm md:text-base lg:text-lg py-2 md:py-3 border-r-[2px] md:border-r-[3px] border-black text-gray-900 flex items-center justify-center min-h-[42px] md:min-h-[54px] leading-none overflow-hidden w-full"><span class="px-0.5 md:px-1 whitespace-nowrap">จันทร์</span></div>
+                    <div class="text-center font-bold text-[11px] sm:text-sm md:text-base lg:text-lg py-2 md:py-3 border-r-[2px] md:border-r-[3px] border-black text-gray-900 flex items-center justify-center min-h-[42px] md:min-h-[54px] leading-none overflow-hidden w-full"><span class="px-0.5 md:px-1 whitespace-nowrap">อังคาร</span></div>
+                    <div class="text-center font-bold text-[11px] sm:text-sm md:text-base lg:text-lg py-2 md:py-3 border-r-[2px] md:border-r-[3px] border-black text-gray-900 flex items-center justify-center min-h-[42px] md:min-h-[54px] leading-none overflow-hidden w-full"><span class="px-0.5 md:px-1 whitespace-nowrap">พุธ</span></div>
+                    <div class="text-center font-bold text-[9px] sm:text-[11px] md:text-sm lg:text-base py-2 md:py-3 border-r-[2px] md:border-r-[3px] border-black text-gray-900 flex items-center justify-center min-h-[42px] md:min-h-[54px] leading-none overflow-hidden w-full"><span class="px-0 md:px-0.5 whitespace-nowrap" style="letter-spacing: -0.5px;">พฤหัสบดี</span></div>
+                    <div class="text-center font-bold text-[11px] sm:text-sm md:text-base lg:text-lg py-2 md:py-3 border-r-[2px] md:border-r-[3px] border-black text-gray-900 flex items-center justify-center min-h-[42px] md:min-h-[54px] leading-none overflow-hidden w-full"><span class="px-0.5 md:px-1 whitespace-nowrap">ศุกร์</span></div>
+                    <div class="text-center font-bold text-[11px] sm:text-sm md:text-base lg:text-lg py-2 md:py-3 border-r-[2px] md:border-r-[3px] border-black bg-purple-200 text-gray-900 flex items-center justify-center min-h-[42px] md:min-h-[54px] leading-none overflow-hidden w-full"><span class="px-0.5 md:px-1 whitespace-nowrap">เสาร์</span></div>
+                    <div class="text-center font-bold text-[11px] sm:text-sm md:text-base lg:text-lg py-2 md:py-3 border-black bg-red-200 text-gray-900 flex items-center justify-center min-h-[42px] md:min-h-[54px] leading-none overflow-hidden w-full border-r-0"><span class="px-0.5 md:px-1 whitespace-nowrap">อาทิตย์</span></div>
                 </div>
                 
-                <div id="calendar-grid" class="grid grid-cols-7 border-t-[2px] md:border-t-[3px] border-l-[2px] md:border-l-[3px] border-black bg-black gap-[2px] md:gap-[3px] shadow-lg rounded-xl md:rounded-2xl overflow-hidden">
+                <div id="calendar-grid" class="grid grid-cols-7 border-t-[2px] md:border-t-[3px] border-l-[2px] md:border-l-[3px] border-black bg-white shadow-lg rounded-xl md:rounded-2xl overflow-hidden">
                     <!-- JS will render cells here -->
                 </div>
             </div>
 
             <!-- Side Info Section -->
             <div class="w-full lg:w-1/3 flex flex-col items-center p-2 relative mt-4 lg:mt-0">
-                <div class="flex flex-col items-center mb-4 md:mb-6 w-full">
-                    <h3 class="text-xl md:text-[26px] lg:text-[32px] font-black text-gray-900 flex items-center gap-2 text-center">
+                <div class="flex flex-col items-center mb-4 md:mb-6 w-full gap-2 md:gap-3">
+                    <h3 class="text-[20px] sm:text-[24px] md:text-[28px] lg:text-[34px] font-black text-gray-900 flex flex-nowrap whitespace-nowrap justify-center items-center gap-2 text-center leading-tight">
                         วันที่มีรูปหัวใจ
-                        <div class="w-8 h-8 md:w-12 md:h-12 bg-white rounded-full border-[2px] md:border-[3px] border-black flex items-center justify-center shadow-sm relative ml-1 transform rotate-12">
-                            <i class="ph-fill ph-heart text-xl md:text-2xl text-red-500"></i>
-                            <div class="absolute -bottom-[4px] -left-[2px] w-3 h-3 md:w-4 md:h-4 bg-white border-l-[2px] md:border-l-[3px] border-b-[2px] md:border-b-[3px] border-black transform rotate-[-30deg]"></div>
+                        <div class="w-10 h-10 md:w-14 md:h-14 lg:w-16 lg:h-16 bg-white rounded-full border-[2px] md:border-[3px] border-black flex items-center justify-center shadow-sm mx-1 flex-shrink-0">
+                            <svg viewBox="0 0 24 24" fill="#ef4444" class="w-6 h-6 md:w-8 md:h-8 lg:w-10 lg:h-10"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
                         </div>
                     </h3>
-                    <h3 class="text-xl md:text-[26px] lg:text-[32px] font-black text-gray-900 mt-1">
+                    <h3 class="text-[22px] md:text-[28px] lg:text-[34px] font-black text-gray-900 leading-tight text-center whitespace-nowrap">
                         เป็นวันที่มีเรียนนะคะ
                     </h3>
                 </div>
 
-                <div class="w-full mb-6 md:mb-8 relative group">
-                    <input type="text" id="class-time-input" value="10.30 - 12.00 น." oninput="updateState('classTime', this.value)" class="w-full text-center text-2xl md:text-3xl lg:text-[40px] font-black text-rose-600 bg-transparent border-2 border-dashed border-transparent hover:border-gray-300 rounded-2xl py-2 md:py-3 focus:outline-none focus:border-rose-400 focus:bg-rose-50 transition-all font-mali hide-cursor-when-not-admin" readonly>
+                <div class="w-full mb-6 md:mb-8 relative group px-2">
+                    <input type="text" id="class-time-input" value="10.30 - 12.00 น." oninput="updateState('classTime', this.value)" class="w-full text-center text-[26px] sm:text-3xl md:text-4xl lg:text-[42px] font-black text-rose-600 bg-transparent border-2 border-dashed border-transparent hover:border-gray-300 rounded-2xl py-2 md:py-3 focus:outline-none focus:border-rose-400 focus:bg-rose-50 transition-all font-mali hide-cursor-when-not-admin whitespace-nowrap" readonly>
                 </div>
 
                 <div class="w-full relative group mb-6 md:mb-8 flex-grow flex justify-center">
-                    <textarea id="quote-input" rows="4" oninput="updateState('quote', this.value)" class="w-full max-w-[280px] text-center text-lg md:text-xl lg:text-2xl font-bold text-gray-700 leading-relaxed bg-transparent border-2 border-dashed border-transparent hover:border-gray-300 rounded-2xl p-2 md:p-4 focus:outline-none focus:border-blue-400 focus:bg-blue-50 transition-all resize-none overflow-hidden font-mali hide-cursor-when-not-admin" readonly>การเรียนแม้เหนื่อยยาก&#10;ยอมลำบากอย่าท้อถอย&#10;สุดทางที่รอคอย&#10;คืออนาคตอันงดงาม</textarea>
+                    <textarea id="quote-input" rows="4" oninput="updateState('quote', this.value)" class="w-full text-center text-lg md:text-xl lg:text-2xl font-bold text-gray-700 leading-relaxed bg-transparent border-2 border-dashed border-transparent hover:border-gray-300 rounded-2xl p-2 md:p-4 focus:outline-none focus:border-blue-400 focus:bg-blue-50 transition-all resize-none overflow-hidden font-mali hide-cursor-when-not-admin whitespace-pre-wrap break-words" readonly>การเรียนแม้เหนื่อยยาก&#10;ยอมลำบากอย่าท้อถอย&#10;สุดทางที่รอคอย&#10;คืออนาคตอันงดงาม</textarea>
                 </div>
 
                 <div id="img-bottom-right" class="w-full flex justify-center items-end mt-auto gap-3 pb-4 z-10 h-32 md:h-40 lg:h-52">
@@ -195,18 +194,18 @@
 
         <!-- แถบติดต่อ -->
         <div class="px-4 md:px-6 lg:px-8 mt-2 md:mt-4">
-            <div class="bg-rose-50 border-[2px] md:border-[3px] border-rose-200 rounded-xl md:rounded-2xl p-3 md:p-4 flex flex-col md:flex-row justify-center items-center gap-3 md:gap-10 shadow-sm relative">
-               <div class="flex items-center gap-2 font-bold text-gray-700 text-base md:text-lg lg:text-xl">
-                 <span class="text-xl md:text-2xl drop-shadow-sm">📞</span> โทร: 
-                 <input type="text" id="contact-tel" value="0646195645" oninput="updateState('contactInfo', {tel: this.value})" class="bg-transparent border-b-2 border-dashed border-transparent hover:border-gray-300 focus:border-rose-400 focus:outline-none w-28 md:w-32 font-mali text-rose-600 hide-cursor-when-not-admin" readonly>
+            <div class="bg-rose-50 border-[2px] md:border-[3px] border-rose-200 rounded-xl md:rounded-2xl p-4 md:p-6 flex flex-row justify-center items-center gap-2 md:gap-4 lg:gap-8 shadow-sm relative mx-auto w-full flex-wrap">
+               <div class="flex items-center justify-center gap-1 md:gap-2 font-bold text-gray-700 text-sm sm:text-base md:text-xl lg:text-2xl whitespace-nowrap flex-1 min-w-fit text-center">
+                 <span class="text-xl md:text-3xl drop-shadow-sm">📞</span> โทร: 
+                 <input type="text" id="contact-tel" value="0646195645" oninput="updateState('contactInfo', {tel: this.value}); this.style.width = (this.value.length * 1.1 + 1) + 'ch';" class="bg-transparent border-b-2 border-dashed border-transparent hover:border-gray-300 focus:border-rose-400 focus:outline-none font-mali text-rose-600 text-center hide-cursor-when-not-admin p-0 w-auto" style="width: 12ch;" readonly>
                </div>
-               <div class="flex items-center gap-2 font-bold text-gray-700 text-base md:text-lg lg:text-xl">
-                 <span class="text-xl md:text-2xl drop-shadow-sm">📘</span> FB: 
-                 <input type="text" id="contact-fb" value="Noon Supanuch" oninput="updateState('contactInfo', {fb: this.value})" class="bg-transparent border-b-2 border-dashed border-transparent hover:border-gray-300 focus:border-rose-400 focus:outline-none w-32 md:w-40 font-mali text-blue-600 hide-cursor-when-not-admin" readonly>
+               <div class="flex items-center justify-center gap-1 md:gap-2 font-bold text-gray-700 text-sm sm:text-base md:text-xl lg:text-2xl whitespace-nowrap flex-1 min-w-fit text-center">
+                 <span class="text-xl md:text-3xl drop-shadow-sm">📘</span> FB: 
+                 <input type="text" id="contact-fb" value="Noon Supanuch" oninput="updateState('contactInfo', {fb: this.value}); this.style.width = (this.value.length * 1.1 + 1) + 'ch';" class="bg-transparent border-b-2 border-dashed border-transparent hover:border-gray-300 focus:border-rose-400 focus:outline-none font-mali text-blue-600 text-center hide-cursor-when-not-admin p-0 w-auto" style="width: 14ch;" readonly>
                </div>
-               <div class="flex items-center gap-2 font-bold text-gray-700 text-base md:text-lg lg:text-xl">
-                 <span class="text-xl md:text-2xl drop-shadow-sm">📱</span> ID: 
-                 <input type="text" id="contact-line" value="noon_supanuch" oninput="updateState('contactInfo', {line: this.value})" class="bg-transparent border-b-2 border-dashed border-transparent hover:border-gray-300 focus:border-rose-400 focus:outline-none w-28 md:w-36 font-mali text-green-600 hide-cursor-when-not-admin" readonly>
+               <div class="flex items-center justify-center gap-1 md:gap-2 font-bold text-gray-700 text-sm sm:text-base md:text-xl lg:text-2xl whitespace-nowrap flex-1 min-w-fit text-center">
+                 <span class="text-xl md:text-3xl drop-shadow-sm">📱</span> ID: 
+                 <input type="text" id="contact-line" value="noon_supanuch" oninput="updateState('contactInfo', {line: this.value}); this.style.width = (this.value.length * 1.1 + 1) + 'ch';" class="bg-transparent border-b-2 border-dashed border-transparent hover:border-gray-300 focus:border-rose-400 focus:outline-none font-mali text-green-600 text-center hide-cursor-when-not-admin p-0 w-auto" style="width: 14ch;" readonly>
                </div>
             </div>
         </div>
@@ -389,7 +388,7 @@
             grid.innerHTML = '';
 
             for (let i = 0; i < startingDay; i++) {
-                grid.innerHTML += `<div class="bg-gray-50 h-[80px] sm:h-24 md:h-[130px] border-b-[2px] md:border-b-[3px] border-r-[2px] md:border-r-[3px] border-black"></div>`;
+                grid.innerHTML += `<div class="bg-white h-[80px] sm:h-24 md:h-[130px] border-b-[2px] md:border-b-[3px] border-r-[2px] md:border-r-[3px] border-black"></div>`;
             }
 
             for (let i = 1; i <= daysInMonth; i++) {
@@ -411,14 +410,13 @@
 
                 let content = `
                     <div onclick="selectDate('${dateStr}')" class="${!customColor ? bgClass : ''} h-[80px] sm:h-24 md:h-[130px] relative border-b-[2px] md:border-b-[3px] border-r-[2px] md:border-r-[3px] border-black transition-all ${extraClasses}" style="${bgStyle}">
-                        <span class="absolute top-1 left-1 md:top-2 md:left-2 text-lg sm:text-xl md:text-3xl font-black ${dayOfWeek === 6 ? 'text-red-700' : (dayOfWeek === 5 ? 'text-purple-800' : 'text-gray-800')}">${i}</span>
+                        <span class="absolute top-1 left-2 md:top-2 md:left-3 text-2xl sm:text-3xl md:text-[44px] font-black leading-none ${dayOfWeek === 6 ? 'text-red-700' : (dayOfWeek === 5 ? 'text-purple-800' : 'text-gray-800')}">${i}</span>
                 `;
 
                 if (isClassDay) {
                     content += `
-                        <div class="absolute top-1 right-1 md:top-2 md:right-2 lg:top-3 lg:right-3 w-6 h-6 sm:w-8 sm:h-8 md:w-10 md:h-10 lg:w-12 lg:h-12 bg-white rounded-full border-[2px] md:border-[3px] border-black flex items-center justify-center shadow-sm z-20">
-                            <i class="ph-fill ph-heart text-red-500 text-sm sm:text-base md:text-xl lg:text-2xl mt-[2px]"></i>
-                            <div class="absolute -bottom-[3px] md:-bottom-[5px] -left-[2px] w-2 h-2 md:w-3 md:h-3 bg-white border-l-[2px] md:border-l-[3px] border-b-[2px] md:border-b-[3px] border-black transform rotate-[-30deg]"></div>
+                        <div class="absolute top-1 right-1 md:top-2 md:right-2 lg:top-3 lg:right-3 w-6 h-6 sm:w-9 sm:h-9 md:w-11 md:h-11 lg:w-12 lg:h-12 bg-white rounded-full border-[2px] md:border-[3px] border-black flex items-center justify-center shadow-sm z-20">
+                            <svg viewBox="0 0 24 24" fill="#ef4444" class="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 lg:w-7 lg:h-7"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
                         </div>
                     `;
                 }
@@ -503,7 +501,16 @@
                 tools.classList.add('flex');
                 adminSection.classList.remove('hidden');
                 
-                inputs.forEach(el => { el.removeAttribute('readonly'); el.classList.add('border-dashed', 'border-gray-300'); el.classList.remove('border-transparent'); });
+                inputs.forEach(el => { 
+                    el.removeAttribute('readonly'); 
+                    if(el.id === 'teacher-name-input') {
+                        el.classList.add('border-white/50');
+                        el.classList.remove('border-transparent');
+                    } else {
+                        el.classList.add('border-dashed', 'border-gray-300'); 
+                        el.classList.remove('border-transparent'); 
+                    }
+                });
             } else {
                 btn.innerHTML = `<i class="ph ph-lock text-lg"></i> <span>สำหรับแอดมิน</span>`;
                 btn.className = "flex items-center gap-2 bg-rose-100 text-rose-700 px-5 py-2.5 rounded-xl hover:bg-rose-200 transition font-bold border-2 border-rose-200 shadow-sm";
@@ -511,7 +518,15 @@
                 tools.classList.remove('flex');
                 adminSection.classList.add('hidden');
 
-                inputs.forEach(el => { el.setAttribute('readonly', true); el.classList.remove('border-dashed', 'border-gray-300'); el.classList.add('border-transparent'); });
+                inputs.forEach(el => { 
+                    el.setAttribute('readonly', true); 
+                    if(el.id === 'teacher-name-input') {
+                        el.classList.remove('border-white/50');
+                    } else {
+                        el.classList.remove('border-dashed', 'border-gray-300'); 
+                    }
+                    el.classList.add('border-transparent'); 
+                });
             }
         }
 
@@ -836,8 +851,55 @@
             const originalText = btn.innerHTML;
             btn.innerHTML = `<i class="ph ph-spinner animate-spin text-xl"></i> กำลังบันทึก...`;
 
+            // แก้ปัญหาตัวหนังสือตกขอบ: แปลงช่องกรอกให้เป็นข้อความชั่วคราว
+            const inputs = el.querySelectorAll('input[type="text"], textarea');
+            inputs.forEach(input => {
+                const isTextarea = input.tagName.toLowerCase() === 'textarea';
+                const replacement = document.createElement(isTextarea ? 'div' : 'span');
+                
+                replacement.className = input.className;
+                replacement.classList.remove('border-dashed', 'hover:border-gray-300', 'hide-cursor-when-not-admin', 'focus:border-rose-400', 'focus:bg-rose-50', 'overflow-hidden');
+                replacement.classList.add('temp-print-element');
+                replacement.style.cssText = input.style.cssText;
+                replacement.style.border = 'none';
+                replacement.style.background = 'transparent';
+                
+                if (isTextarea) {
+                    replacement.style.whiteSpace = 'pre-wrap';
+                    replacement.style.wordBreak = 'break-word';
+                    replacement.style.display = 'flex';
+                    replacement.style.flexDirection = 'column';
+                    replacement.style.justifyContent = 'center';
+                    replacement.style.alignItems = 'center';
+                    replacement.style.width = '100%';
+                    replacement.style.height = 'auto'; // allow it to grow naturally
+                    replacement.innerHTML = input.value.replace(/\n/g, '<br>');
+                } else {
+                    replacement.innerText = input.value;
+                    replacement.style.whiteSpace = 'nowrap';
+                    replacement.style.textAlign = 'center';
+                    
+                    replacement.style.width = 'auto';
+                    replacement.style.display = 'inline';
+                    replacement.style.padding = '0';
+                    replacement.style.margin = '0';
+                }
+                
+                input.parentNode.insertBefore(replacement, input);
+                input.dataset.originalDisplay = input.style.display;
+                input.style.display = 'none';
+            });
+
             try {
-                const canvas = await html2canvas(el, { scale: window.innerWidth < 768 ? 1.5 : 2, backgroundColor: '#ffffff', useCORS: true });
+                // รอให้เบราว์เซอร์จัดการ layout ใหม่ก่อนถ่ายรูป
+                await new Promise(resolve => setTimeout(resolve, 100));
+
+                const canvas = await html2canvas(el, { 
+                    scale: window.innerWidth < 768 ? 1.5 : 2, 
+                    backgroundColor: '#ffffff', 
+                    useCORS: true,
+                    logging: false
+                });
                 const link = document.createElement('a');
                 link.href = canvas.toDataURL("image/png");
                 link.download = `ตารางเรียนครู${state.teacherName}_เดือน${monthNames[state.currentDate.getMonth()]}.png`;
@@ -847,6 +909,13 @@
             } finally {
                 el.classList.remove('printing');
                 btn.innerHTML = originalText;
+                
+                // คืนค่าช่องกรอกข้อมูลกลับมา
+                const tempElements = el.querySelectorAll('.temp-print-element');
+                tempElements.forEach(tempEl => tempEl.remove());
+                inputs.forEach(input => {
+                    input.style.display = input.dataset.originalDisplay || '';
+                });
             }
         }
 
@@ -877,6 +946,10 @@
         // --- Init ---
         window.onload = () => {
             renderAll();
+            const teacherInput = document.getElementById('teacher-name-input');
+            if(teacherInput) {
+                teacherInput.style.width = (teacherInput.value.length * 1.5 + 3) + 'ch';
+            }
         };
     </script>
 </body>
