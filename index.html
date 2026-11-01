@@ -2,7 +2,8 @@
 <html lang="th">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <!-- ปรับ Viewport ให้รองรับมือถือและหน้าจอทุกขนาดได้ดีขึ้น -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
   <title>ตารางเรียนและเช็คชื่อ</title>
   
   <!-- Tailwind CSS -->
@@ -16,7 +17,7 @@
   <!-- html2canvas -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 
-  <!-- Firebase integration สำหรับระบบ Cloud Save อัตโนมัติ -->
+  <!-- Firebase integration -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
     import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
@@ -24,11 +25,13 @@
     window.FirebaseLibs = { initializeApp, getAuth, signInAnonymously, signInWithCustomToken, getFirestore, doc, setDoc, onSnapshot };
   </script>
 
-  <!-- Dynamic Web App Icons (Can be updated via JS) -->
+  <!-- Default App Icons & PWA Setup -->
   <link id="favicon" rel="icon" type="image/png" href="https://placehold.co/192x192/ef4444/white?text=App">
   <link id="apple-touch-icon" rel="apple-touch-icon" href="https://placehold.co/192x192/ef4444/white?text=App">
   <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="theme-color" content="#ef4444">
 
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Mali:wght@400;500;600;700&display=swap');
@@ -48,11 +51,11 @@
     @keyframes bounce-slow { 0%, 100% { transform: translateY(-5%); } 50% { transform: translateY(0); } }
     .animate-bounce-slow { animation: bounce-slow 2s infinite; }
 
-    /* For Mobile Calendar text handling */
+    /* For Mobile Content wrapping */
     .break-words-mobile { word-wrap: break-word; overflow-wrap: break-word; hyphens: auto; }
   </style>
 </head>
-<body class="bg-rose-50 text-gray-800 pb-20">
+<body class="bg-rose-50 text-gray-800 pb-20 overflow-x-hidden">
   <div id="root"></div>
 
   <script type="text/babel">
@@ -136,7 +139,7 @@
       // Global Data
       const [teacherName, setTeacherName] = useState('นุ่น');
       const [quote, setQuote] = useState('การเรียนแม้เหนื่อยยาก\nยอมลำบากอย่าท้อถอย\nสุดทางที่รอคอย\nคืออนาคตอันงดงาม');
-      const [appIcon, setAppIcon] = useState(null); // Web App Icon
+      const [appIcon, setAppIcon] = useState(null); // Web App Icon (Base64)
       
       // Group Management
       const [groups, setGroups] = useState([{ id: 1, name: 'กลุ่มทั่วไป' }]);
@@ -152,7 +155,7 @@
             { id: 2, name: 'ด.ญ. สมหญิง ขยันดี' }
           ],
           classDays: new Set(),
-          attendance: {}, // เปลี่ยนเป็น format: { 'YYYY-MM-DD': { studentId: 'attended' | 'makeup' } }
+          attendance: {},
           payments: {},
           classTime: '10.30 - 12.00 น.',
           dayNotes: {} 
@@ -235,6 +238,7 @@
                  if (data.quote) setQuote(data.quote);
                  if (data.contactInfo) setContactInfo(data.contactInfo);
                  if (data.defaultFee) setDefaultFee(data.defaultFee);
+                 if (data.appIcon) setAppIcon(data.appIcon); // โหลดรูปไอคอนแอป
                  if (data.groupData) {
                     const parsed = {};
                     for (const k in data.groupData) {
@@ -284,6 +288,7 @@
                   quote,
                   contactInfo,
                   defaultFee,
+                  appIcon, // เซฟไอคอนแอป
                   groupData: serializedGroupData,
                   updatedAt: new Date().toISOString()
                }, { merge: true });
@@ -294,19 +299,56 @@
             } finally {
                setTimeout(() => { window._isWritingToCloud = false; }, 500);
             }
-         }, 1500); // ดีเลย์ 1.5 วินาที เพื่อไม่ให้บันทึกถี่เกินไป
+         }, 1500); // ดีเลย์ 1.5 วินาที
          return () => clearTimeout(timer);
-      }, [groups, groupData, teacherName, quote, contactInfo, defaultFee]);
+      }, [groups, groupData, teacherName, quote, contactInfo, defaultFee, appIcon]);
 
-      // --- Update Web App Icon Dynamic ---
+      // --- Dynamic Web App Manifest & Icon Update (PWA) ---
       useEffect(() => {
-        if (appIcon) {
-          const favicon = document.getElementById('favicon');
-          const appleIcon = document.getElementById('apple-touch-icon');
-          if (favicon) favicon.href = appIcon;
-          if (appleIcon) appleIcon.href = appIcon;
+        const iconUrl = appIcon || 'https://placehold.co/192x192/ef4444/white?text=App';
+        
+        // 1. Update HTML Head tags
+        const favicon = document.getElementById('favicon');
+        const appleIcon = document.getElementById('apple-touch-icon');
+        if (favicon) favicon.href = iconUrl;
+        if (appleIcon) appleIcon.href = iconUrl;
+
+        // 2. Generate and inject manifest.json dynamically
+        const manifest = {
+          name: `ตารางเรียนครู${teacherName}`,
+          short_name: "ตารางเรียน",
+          start_url: ".",
+          display: "standalone",
+          background_color: "#fff1f2",
+          theme_color: "#ef4444",
+          icons: [
+            {
+              src: iconUrl,
+              sizes: "192x192",
+              type: "image/png"
+            },
+            {
+              src: iconUrl,
+              sizes: "512x512",
+              type: "image/png"
+            }
+          ]
+        };
+
+        const stringManifest = JSON.stringify(manifest);
+        const blob = new Blob([stringManifest], { type: 'application/json' });
+        const manifestURL = URL.createObjectURL(blob);
+
+        let manifestLink = document.getElementById('dynamic-manifest');
+        if (!manifestLink) {
+          manifestLink = document.createElement('link');
+          manifestLink.id = 'dynamic-manifest';
+          manifestLink.rel = 'manifest';
+          document.head.appendChild(manifestLink);
         }
-      }, [appIcon]);
+        manifestLink.href = manifestURL;
+
+      }, [appIcon, teacherName]); // ทำงานใหม่เมื่อไอคอนหรือชื่อครูเปลี่ยน
 
       // --- Calendar Data ---
       const monthNames = ["มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน", "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"];
@@ -348,12 +390,37 @@
         }
       };
 
+      // ฟังก์ชันจัดการอัปโหลดไอคอนแอป (ย่อขนาดภาพป้องกันเปลือง Data)
       const handleAppIconUpload = (e) => {
         const file = e.target.files[0];
         if (file) {
-          const url = URL.createObjectURL(file);
-          setAppIcon(url);
-          showAlert("อัปเดตไอคอนแอปเรียบร้อยแล้วค่ะ");
+          const reader = new FileReader();
+          reader.onload = (event) => {
+            const img = new Image();
+            img.onload = () => {
+              // สร้าง Canvas เพื่อย่อขนาดไอคอนเป็น 192x192 สำหรับ PWA
+              const canvas = document.createElement('canvas');
+              canvas.width = 192;
+              canvas.height = 192;
+              const ctx = canvas.getContext('2d');
+              
+              // ใส่พื้นหลังสีขาวเผื่อรูปโปร่งใส
+              ctx.fillStyle = '#ffffff';
+              ctx.fillRect(0, 0, canvas.width, canvas.height);
+              
+              // วาดรูปลงไปตรงกลาง
+              const size = Math.min(img.width, img.height);
+              const x = (img.width - size) / 2;
+              const y = (img.height - size) / 2;
+              ctx.drawImage(img, x, y, size, size, 0, 0, 192, 192);
+              
+              const dataUrl = canvas.toDataURL('image/png', 0.8);
+              setAppIcon(dataUrl);
+              showAlert("อัปเดตไอคอนแอปเรียบร้อยแล้วค่ะ\nผู้ที่บันทึกเว็บลงหน้าจอจะเห็นไอคอนนี้ครับ");
+            };
+            img.src = event.target.result;
+          };
+          reader.readAsDataURL(file);
         }
       };
 
@@ -440,9 +507,9 @@
         if (!isAdmin) return;
         const currentDayData = { ...(attendance[dateStr] || {}) };
         if (currentDayData[studentId] === status || status === null) {
-           delete currentDayData[studentId]; // ยกเลิกสถานะ หรือตั้งเป็นขาด (ค่าว่าง)
+           delete currentDayData[studentId];
         } else {
-           currentDayData[studentId] = status; // 'attended' หรือ 'makeup'
+           currentDayData[studentId] = status; 
         }
         setAttendance({ ...attendance, [dateStr]: currentDayData });
       };
@@ -457,10 +524,11 @@
 
         try {
           const canvas = await window.html2canvas(element, { scale: 2, backgroundColor: '#ffffff', useCORS: true });
-          const image = canvas.toDataURL("image/png");
+          // เปลี่ยนเป็นรูปแบบไฟล์ JPG และคุณภาพ 95%
+          const image = canvas.toDataURL("image/jpeg", 0.95);
           const link = document.createElement('a');
           link.href = image;
-          link.download = `ตารางเรียนครู${teacherName}_เดือน${monthNames[currentMonth]}.png`;
+          link.download = `ตารางเรียนครู${teacherName}_เดือน${monthNames[currentMonth]}.jpg`;
           link.click();
         } catch (err) {
           console.error("Export failed", err);
@@ -515,7 +583,7 @@
       const totalPendingRevenue = totalExpectedRevenue - totalCollectedRevenue;
 
       return (
-        <div className="min-h-screen p-2 md:p-6 pb-24">
+        <div className="min-h-screen p-2 md:p-4 lg:p-6 pb-24 max-w-[100vw] overflow-x-hidden">
           <AlertModal isOpen={alertState.isOpen} message={alertState.message} onClose={() => setAlertState({isOpen:false, message:''})} />
           <ConfirmModal isOpen={confirmState.isOpen} message={confirmState.message} onConfirm={confirmState.onConfirm} onCancel={() => setConfirmState({isOpen:false, message:'', onConfirm:null})} />
 
@@ -547,27 +615,25 @@
               <button onClick={() => setCurrentDate(new Date(currentYear, currentMonth + 1, 1))} className="p-2 bg-white rounded-xl shadow-sm"><Icons.ChevronRight className="text-rose-600" /></button>
             </div>
             
-            {/* เมนูเลือกกลุ่มสำหรับผู้ปกครองและแอดมิน */}
-            <div className="flex items-center gap-2 bg-rose-50 px-3 py-2 rounded-2xl border border-rose-200 w-full md:w-auto">
-               <Icons.Users className="text-rose-500 w-5 h-5 hidden sm:block" />
+            <div className="flex items-center gap-2 bg-rose-50 px-3 py-2 rounded-2xl border border-rose-200 w-full md:w-auto overflow-hidden">
+               <Icons.Users className="text-rose-500 w-5 h-5 hidden sm:block shrink-0" />
                <span className="font-bold text-rose-700 text-sm md:text-base whitespace-nowrap">ตารางเรียนกลุ่ม:</span>
                <select 
                  value={activeGroupId} 
                  onChange={e => setActiveGroupId(Number(e.target.value))}
-                 className="bg-white border-2 border-rose-200 text-rose-800 font-bold rounded-lg px-2 py-1 text-sm md:text-base focus:outline-none w-full md:w-auto"
+                 className="bg-white border-2 border-rose-200 text-rose-800 font-bold rounded-lg px-2 py-1 text-sm md:text-base focus:outline-none w-full md:w-auto truncate max-w-[120px] sm:max-w-none"
                >
                  {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
                </select>
             </div>
 
-            <div className="flex gap-2 w-full md:w-auto overflow-x-auto pb-1 md:pb-0 items-center">
-              {cloudStatus && <span className="text-xs md:text-sm font-bold text-gray-500 bg-gray-100 px-3 py-2 rounded-xl whitespace-nowrap hidden lg:block">{cloudStatus}</span>}
+            <div className="flex gap-2 w-full md:w-auto overflow-x-auto pb-1 md:pb-0 items-center justify-center sm:justify-start">
               {isAdmin ? (
-                <button onClick={() => {setIsAdmin(false); setSelectedDate(null);}} className="flex items-center gap-2 bg-gray-100 px-4 py-2 rounded-xl font-bold text-sm md:text-base border-2 border-gray-200 whitespace-nowrap"><Icons.Unlock className="w-5 h-5"/> ออกจากแอดมิน</button>
+                <button onClick={() => {setIsAdmin(false); setSelectedDate(null);}} className="flex items-center gap-1 md:gap-2 bg-gray-100 px-3 md:px-4 py-2 rounded-xl font-bold text-xs md:text-base border-2 border-gray-200 whitespace-nowrap"><Icons.Unlock className="w-4 h-4 md:w-5 md:h-5"/> ออกจากแอดมิน</button>
               ) : (
-                <button onClick={() => setShowLoginModal(true)} className="flex items-center gap-2 bg-rose-100 text-rose-700 px-4 py-2 rounded-xl font-bold text-sm md:text-base border-2 border-rose-200 whitespace-nowrap"><Icons.Lock className="w-5 h-5"/> สำหรับแอดมิน</button>
+                <button onClick={() => setShowLoginModal(true)} className="flex items-center gap-1 md:gap-2 bg-rose-100 text-rose-700 px-3 md:px-4 py-2 rounded-xl font-bold text-xs md:text-base border-2 border-rose-200 whitespace-nowrap"><Icons.Lock className="w-4 h-4 md:w-5 md:h-5"/> สำหรับแอดมิน</button>
               )}
-              <button onClick={handleExportImage} className="flex items-center gap-2 bg-gradient-to-r from-red-500 to-rose-500 text-white px-4 py-2 rounded-xl font-bold text-sm md:text-base shadow-md whitespace-nowrap"><Icons.Image className="w-5 h-5"/> บันทึกรูปภาพ</button>
+              <button onClick={handleExportImage} className="flex items-center gap-1 md:gap-2 bg-gradient-to-r from-red-500 to-rose-500 text-white px-3 md:px-4 py-2 rounded-xl font-bold text-xs md:text-base shadow-md whitespace-nowrap"><Icons.Image className="w-4 h-4 md:w-5 md:h-5"/> บันทึกรูป</button>
             </div>
           </div>
 
@@ -577,20 +643,21 @@
               <div className="flex flex-wrap items-center gap-2 md:gap-4 justify-center">
                 <span className="font-bold text-blue-800 flex items-center gap-1"><Icons.Palette className="w-5 h-5"/> ตกแต่ง:</span>
                 <div className="flex items-center gap-2 bg-white px-2 py-1 rounded-xl border shadow-sm">
-                  <label>สีหัวตาราง</label><input type="color" value={headerColor} onChange={e=>setHeaderColor(e.target.value)} className="w-6 h-6 p-0 border-0 bg-transparent"/>
+                  <label>สีหัวตาราง</label><input type="color" value={headerColor} onChange={e=>setHeaderColor(e.target.value)} className="w-6 h-6 p-0 border-0 bg-transparent cursor-pointer"/>
                 </div>
                 <div className="flex items-center gap-2 bg-white px-2 py-1 rounded-xl border shadow-sm">
-                  <label>สีชื่อครู</label><input type="color" value={teacherNameColor} onChange={e=>setTeacherNameColor(e.target.value)} className="w-6 h-6 p-0 border-0 bg-transparent"/>
+                  <label>สีชื่อครู</label><input type="color" value={teacherNameColor} onChange={e=>setTeacherNameColor(e.target.value)} className="w-6 h-6 p-0 border-0 bg-transparent cursor-pointer"/>
                 </div>
               </div>
               <div className="flex flex-wrap items-center gap-2 justify-center">
-                <label className="cursor-pointer bg-blue-100 px-2 py-1 rounded-lg font-bold text-xs md:text-sm">ซ้ายบน <input type="file" className="hidden" onChange={e => {if(e.target.files[0]) setCustomImages(p=>({...p, topLeft: URL.createObjectURL(e.target.files[0])}))}} /></label>
-                <label className="cursor-pointer bg-blue-100 px-2 py-1 rounded-lg font-bold text-xs md:text-sm">ขวาบน <input type="file" className="hidden" onChange={e => {if(e.target.files[0]) setCustomImages(p=>({...p, topRight: URL.createObjectURL(e.target.files[0])}))}} /></label>
-                <label className="cursor-pointer bg-blue-100 px-2 py-1 rounded-lg font-bold text-xs md:text-sm">ซ้ายล่าง <input type="file" className="hidden" onChange={e => {if(e.target.files[0]) setCustomImages(p=>({...p, bottomLeft: URL.createObjectURL(e.target.files[0])}))}} /></label>
-                <label className="cursor-pointer bg-blue-100 px-2 py-1 rounded-lg font-bold text-xs md:text-sm">ขวาล่าง <input type="file" className="hidden" onChange={e => {if(e.target.files[0]) setCustomImages(p=>({...p, bottomRight: URL.createObjectURL(e.target.files[0])}))}} /></label>
+                <label className="cursor-pointer bg-blue-100 hover:bg-blue-200 px-2 py-1 rounded-lg font-bold text-xs md:text-sm transition">ซ้ายบน <input type="file" className="hidden" onChange={e => {if(e.target.files[0]) setCustomImages(p=>({...p, topLeft: URL.createObjectURL(e.target.files[0])}))}} /></label>
+                <label className="cursor-pointer bg-blue-100 hover:bg-blue-200 px-2 py-1 rounded-lg font-bold text-xs md:text-sm transition">ขวาบน <input type="file" className="hidden" onChange={e => {if(e.target.files[0]) setCustomImages(p=>({...p, topRight: URL.createObjectURL(e.target.files[0])}))}} /></label>
+                <label className="cursor-pointer bg-blue-100 hover:bg-blue-200 px-2 py-1 rounded-lg font-bold text-xs md:text-sm transition">ซ้ายล่าง <input type="file" className="hidden" onChange={e => {if(e.target.files[0]) setCustomImages(p=>({...p, bottomLeft: URL.createObjectURL(e.target.files[0])}))}} /></label>
+                <label className="cursor-pointer bg-blue-100 hover:bg-blue-200 px-2 py-1 rounded-lg font-bold text-xs md:text-sm transition">ขวาล่าง <input type="file" className="hidden" onChange={e => {if(e.target.files[0]) setCustomImages(p=>({...p, bottomRight: URL.createObjectURL(e.target.files[0])}))}} /></label>
                 
-                <label className="cursor-pointer bg-rose-200 text-rose-800 px-2 py-1 rounded-lg font-bold text-xs md:text-sm ml-2 border border-rose-300">
-                  <span className="flex items-center gap-1"><Icons.Settings className="w-4 h-4"/> ไอคอนแอป</span>
+                {/* ปุ่มอัปโหลดรูปไอคอนเว็บสำหรับ PWA */}
+                <label className="cursor-pointer bg-gradient-to-r from-rose-200 to-pink-200 hover:from-rose-300 hover:to-pink-300 text-rose-800 px-3 py-1.5 rounded-lg font-bold text-xs md:text-sm ml-2 border border-rose-300 shadow-sm transition">
+                  <span className="flex items-center gap-1"><Icons.Settings className="w-4 h-4"/> เปลี่ยนรูปไอคอนแอป (บนจอมือถือ)</span>
                   <input type="file" accept="image/*" className="hidden" onChange={handleAppIconUpload} />
                 </label>
               </div>
@@ -601,41 +668,41 @@
           <div id="printable-schedule" className="max-w-6xl mx-auto bg-white rounded-[24px] md:rounded-[32px] overflow-hidden shadow-xl border-4 md:border-[6px] border-gray-100 pb-4 relative">
             
             {/* Header */}
-            <header style={{backgroundColor: headerColor}} className="text-white p-4 md:p-6 relative flex items-center justify-center min-h-[100px] md:min-h-[140px] border-b-4 md:border-b-[6px] border-white overflow-hidden">
-              <div className="absolute left-2 md:left-8 opacity-30 md:opacity-100 z-0 pointer-events-none">
-                {customImages.topLeft ? <img src={customImages.topLeft} className="h-12 sm:h-16 md:h-32 object-contain" /> : <span className="text-4xl md:text-6xl drop-shadow-md transform -rotate-12">🎒</span>}
-              </div>
-              <div className="absolute right-2 md:right-8 opacity-30 md:opacity-100 z-0 pointer-events-none">
-                {customImages.topRight ? <img src={customImages.topRight} className="h-12 sm:h-16 md:h-32 object-contain" /> : <span className="text-4xl md:text-6xl drop-shadow-md transform rotate-12">📝</span>}
+            <header style={{backgroundColor: headerColor}} className="text-white p-3 md:p-6 relative flex items-center justify-center min-h-[70px] sm:min-h-[90px] md:min-h-[140px] border-b-4 md:border-b-[6px] border-white overflow-hidden">
+              <div className="absolute left-2 md:left-8 opacity-40 md:opacity-100 z-0 pointer-events-none">
+                {customImages.topLeft ? <img src={customImages.topLeft} className="h-10 sm:h-16 md:h-28 lg:h-32 object-contain" /> : <span className="text-3xl md:text-6xl drop-shadow-md transform -rotate-12">🎒</span>}
               </div>
               
-              <h1 className="text-2xl sm:text-3xl md:text-[56px] font-black tracking-wide drop-shadow-md flex flex-wrap justify-center items-center gap-1 md:gap-3 z-20 text-center relative px-4 md:px-8">
-                ตารางเรียนครู
-                {isAdmin ? (
-                  <input type="text" value={teacherName} onChange={e=>setTeacherName(e.target.value)} style={{color: teacherNameColor}} className="bg-transparent border-b-2 md:border-b-4 border-dashed border-white/50 focus:outline-none text-center w-20 sm:w-28 md:w-56" />
-                ) : (
-                  <span style={{color: teacherNameColor}}>{teacherName}</span>
-                )}
-                <span>เดือน{monthNames[currentMonth]}</span>
-              </h1>
-              <div className="absolute bottom-2 right-2 md:bottom-6 md:right-8 bg-black/50 backdrop-blur-sm px-3 py-1 md:px-4 md:py-2 rounded-xl md:rounded-2xl border border-white/50 text-white font-bold text-xs md:text-xl z-30 shadow-md">
-                 กลุ่ม: {groups.find(g => g.id === activeGroupId)?.name || ''}
+              <div className="z-20 flex items-center justify-center px-12 sm:px-24 md:px-32 w-full">
+                <h1 className="text-sm sm:text-xl md:text-3xl lg:text-[44px] font-black tracking-wide drop-shadow-md flex flex-nowrap justify-center items-center gap-1 md:gap-3 text-center whitespace-nowrap">
+                  <span>ตารางเรียนครู</span>
+                  {isAdmin ? (
+                    <input type="text" value={teacherName} onChange={e=>setTeacherName(e.target.value)} style={{color: teacherNameColor}} className="bg-transparent border-b-2 md:border-b-4 border-dashed border-white/50 focus:outline-none text-center w-12 sm:w-20 md:w-32 lg:w-48" />
+                  ) : (
+                    <span style={{color: teacherNameColor}}>{teacherName}</span>
+                  )}
+                  <span>เดือน{monthNames[currentMonth]}</span>
+                </h1>
+              </div>
+
+              <div className="absolute right-2 md:right-8 opacity-40 md:opacity-100 z-0 pointer-events-none">
+                {customImages.topRight ? <img src={customImages.topRight} className="h-10 sm:h-16 md:h-28 lg:h-32 object-contain" /> : <span className="text-3xl md:text-6xl drop-shadow-md transform rotate-12">📝</span>}
               </div>
             </header>
 
             {/* Calendar Body */}
-            <div className="flex flex-col lg:flex-row p-3 md:p-6 lg:p-8 gap-4 lg:gap-8 relative z-10">
+            <div className="flex flex-col lg:flex-row p-2 sm:p-4 md:p-6 lg:p-8 gap-4 lg:gap-8 relative z-10">
               <div className="w-full lg:w-2/3 relative">
                 
-                <div className="grid grid-cols-7 mb-2 md:mb-3 bg-gray-100 rounded-xl md:rounded-2xl border-2 md:border-[3px] border-black overflow-hidden shadow-sm">
+                <div className="grid grid-cols-7 mb-1.5 md:mb-3 bg-gray-100 rounded-lg md:rounded-2xl border-2 md:border-[3px] border-black overflow-hidden shadow-sm">
                   {dayNames.map((day, idx) => (
-                    <div key={day} className={`text-center font-bold text-xs sm:text-sm md:text-xl py-2 md:py-3 border-r-2 md:border-r-[3px] border-black last:border-r-0 ${idx===5?'bg-purple-200':idx===6?'bg-red-200':''}`}>
+                    <div key={day} className={`text-center font-bold text-[10px] sm:text-sm md:text-xl py-1.5 md:py-3 border-r-2 md:border-r-[3px] border-black last:border-r-0 ${idx===5?'bg-purple-200':idx===6?'bg-red-200':''}`}>
                       {day}
                     </div>
                   ))}
                 </div>
                 
-                <div className="grid grid-cols-7 border-t-2 md:border-t-[3px] border-l-2 md:border-l-[3px] border-black bg-gray-200 gap-[2px] md:gap-[3px] rounded-xl md:rounded-2xl overflow-hidden shadow-md">
+                <div className="grid grid-cols-7 border-t-2 md:border-t-[3px] border-l-2 md:border-l-[3px] border-black bg-gray-200 gap-[2px] md:gap-[3px] rounded-lg md:rounded-2xl overflow-hidden shadow-md">
                   {calendarCells.map((day, index) => {
                     const dayOfWeek = index % 7;
                     const dateStr = day ? formatDate(currentYear, currentMonth, day) : null;
@@ -648,36 +715,36 @@
                     return (
                       <div key={index} onClick={() => day && setSelectedDate(dateStr)} style={{backgroundColor: customBg || ''}}
                         className={`
-                          ${!customBg ? bg : ''} h-20 sm:h-24 md:h-32 relative border-b-2 md:border-b-[3px] border-r-2 md:border-r-[3px] border-black p-1 md:p-2 cursor-pointer
+                          ${!customBg ? bg : ''} h-16 sm:h-20 md:h-32 relative border-b-2 md:border-b-[3px] border-r-2 md:border-r-[3px] border-black p-0.5 md:p-2 cursor-pointer
                           ${isSelected && isAdmin ? 'ring-2 md:ring-4 ring-inset ring-blue-500 z-10' : ''} ${!day?'bg-gray-100':''}
                         `}>
                         {day && (
                           <>
-                            <span className={`absolute top-1 left-2 md:top-2 md:left-3 text-2xl sm:text-3xl md:text-5xl font-black z-10 drop-shadow-sm ${dayOfWeek===6?'text-red-700':dayOfWeek===5?'text-purple-800':'text-gray-800'}`}>{day}</span>
+                            <span className={`absolute top-0.5 left-1 md:top-2 md:left-3 text-lg sm:text-2xl md:text-5xl font-black z-10 drop-shadow-sm ${dayOfWeek===6?'text-red-700':dayOfWeek===5?'text-purple-800':'text-gray-800'}`}>{day}</span>
                             
                             {isClass && (
-                              <div className="absolute top-1 right-1 md:top-2 md:right-2 w-6 h-6 sm:w-8 sm:h-8 md:w-10 md:h-10 bg-white rounded-full border md:border-[3px] border-black flex items-center justify-center shadow-sm z-20">
-                                <Icons.Heart fill="#ef4444" color="#ef4444" className="w-3 h-3 sm:w-4 sm:h-4 md:w-6 md:h-6" />
+                              <div className="absolute top-0.5 right-0.5 md:top-2 md:right-2 w-5 h-5 sm:w-6 sm:h-6 md:w-10 md:h-10 bg-white rounded-full border md:border-[3px] border-black flex items-center justify-center shadow-sm z-20">
+                                <Icons.Heart fill="#ef4444" color="#ef4444" className="w-2.5 h-2.5 sm:w-3 sm:h-3 md:w-6 md:h-6" />
                               </div>
                             )}
 
-                            {/* Note / ข้อความพิเศษในวัน */}
+                            {/* Note */}
                             {note && (
-                              <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 mt-3 md:mt-4 text-[10px] sm:text-xs md:text-sm font-bold text-red-600 text-center w-[90%] break-words-mobile px-1 py-0.5 leading-tight z-20 drop-shadow-sm bg-white/70 backdrop-blur-sm rounded">
+                              <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 mt-2 md:mt-4 text-[8px] sm:text-[10px] md:text-sm font-bold text-red-600 text-center w-[95%] break-words-mobile px-0.5 py-0.5 leading-tight z-20 drop-shadow-sm bg-white/70 backdrop-blur-sm rounded">
                                 {note}
                               </div>
                             )}
                             
                             {dateStr && Object.keys(attendance[dateStr] || {}).length > 0 && (
-                              <div className="absolute bottom-1 right-1 text-[9px] sm:text-[10px] md:text-sm font-bold bg-green-100 border border-green-500 text-green-700 px-1 py-0 rounded-md md:rounded-xl z-20 shadow-sm">
+                              <div className="absolute bottom-0.5 right-0.5 text-[7px] sm:text-[9px] md:text-sm font-bold bg-green-100 border border-green-500 text-green-700 px-1 py-0 rounded md:rounded-xl z-20 shadow-sm whitespace-nowrap">
                                 มา {Object.keys(attendance[dateStr]||{}).length}/{students.length}
                               </div>
                             )}
 
                             {isAdmin && isSelected && (
-                              <div className="absolute bottom-1 left-1 hide-on-print bg-white p-0.5 md:p-1 rounded shadow flex z-30 border border-gray-200" onClick={e=>e.stopPropagation()}>
-                                 <Icons.Palette className="w-3 h-3 md:w-4 md:h-4 text-gray-500"/>
-                                 <input type="color" value={cellColors[dateStr]||'#ffffff'} onChange={e=>setCellColors({...cellColors,[dateStr]:e.target.value})} className="w-3 h-3 md:w-5 md:h-5 opacity-0 absolute inset-0 cursor-pointer"/>
+                              <div className="absolute bottom-0.5 left-0.5 hide-on-print bg-white p-0.5 rounded shadow flex z-30 border border-gray-200" onClick={e=>e.stopPropagation()}>
+                                 <Icons.Palette className="w-2 h-2 sm:w-3 sm:h-3 md:w-4 md:h-4 text-gray-500"/>
+                                 <input type="color" value={cellColors[dateStr]||'#ffffff'} onChange={e=>setCellColors({...cellColors,[dateStr]:e.target.value})} className="w-2 h-2 sm:w-3 sm:h-3 md:w-5 md:h-5 opacity-0 absolute inset-0 cursor-pointer"/>
                               </div>
                             )}
                           </>
@@ -688,47 +755,58 @@
                 </div>
                 
                 {/* Custom Left Bottom Decoration */}
-                <div className="absolute -bottom-4 -left-4 z-20 pointer-events-none hidden sm:block">
-                   {customImages.bottomLeft && <img src={customImages.bottomLeft} className="h-24 md:h-32 object-contain" />}
+                <div className="absolute -bottom-2 -left-2 md:-bottom-4 md:-left-4 z-20 pointer-events-none hidden sm:block">
+                   {customImages.bottomLeft && <img src={customImages.bottomLeft} className="h-16 md:h-32 object-contain" />}
                 </div>
               </div>
 
               {/* Right Sidebar Info */}
-              <div className="w-full lg:w-1/3 flex flex-col items-center">
-                <div className="text-center mb-4 md:mb-6">
-                  <h3 className="text-xl md:text-[32px] font-black flex items-center justify-center gap-1 md:gap-2 whitespace-nowrap">
-                    วันที่มี <div className="w-8 h-8 md:w-12 md:h-12 bg-white rounded-full border-2 md:border-[3px] border-white shadow-sm flex items-center justify-center"><Icons.Heart fill="#ef4444" color="#ef4444" className="w-5 h-5 md:w-7 md:h-7"/></div> เป็นวันเรียนนะคะ
+              <div className="w-full lg:w-1/3 flex flex-col items-center mt-4 lg:mt-0">
+                <div className="text-center mb-3 md:mb-6">
+                  <h3 className="text-lg md:text-[32px] font-black flex items-center justify-center gap-1 md:gap-2 flex-wrap">
+                    วันที่มี 
+                    <div className="w-6 h-6 md:w-12 md:h-12 bg-white rounded-full border-2 md:border-[3px] border-white shadow-sm flex items-center justify-center inline-flex">
+                      <Icons.Heart fill="#ef4444" color="#ef4444" className="w-3.5 h-3.5 md:w-7 md:h-7"/>
+                    </div> 
+                    เป็นวันเรียนนะคะ
                   </h3>
                 </div>
 
-                <div className="w-full text-center relative group mb-4">
+                <div className="w-full text-center relative group mb-3 md:mb-4 px-2">
                   {isAdmin ? (
-                    <input type="text" value={classTime} onChange={e=>setClassTime(e.target.value)} className="w-full text-center text-2xl md:text-[40px] font-black text-rose-600 bg-transparent border-2 border-dashed border-gray-300 rounded-xl py-2 md:py-3 focus:outline-none" />
+                    <input type="text" value={classTime} onChange={e=>setClassTime(e.target.value)} className="w-full text-center text-xl md:text-[40px] font-black text-rose-600 bg-transparent border-2 border-dashed border-gray-300 rounded-xl py-1 md:py-3 focus:outline-none" />
                   ) : (
-                    <div className="text-2xl md:text-[40px] font-black text-rose-600 py-2">{classTime}</div>
+                    <div className="text-xl md:text-[40px] font-black text-rose-600 py-1 md:py-2">{classTime}</div>
                   )}
                 </div>
 
-                <div className="w-full text-center relative mb-4">
+                <div className="w-full text-center relative mb-2 md:mb-4 px-2">
                   {isAdmin ? (
-                    <textarea value={quote} onChange={e=>setQuote(e.target.value)} rows="4" className="w-full max-w-[280px] text-center text-lg md:text-2xl font-bold text-gray-700 bg-transparent border-2 border-dashed border-gray-300 rounded-xl p-2 md:p-4 focus:outline-none resize-none" />
+                    <textarea value={quote} onChange={e=>setQuote(e.target.value)} rows="4" className="w-full text-center text-base md:text-2xl font-bold text-gray-700 bg-transparent border-2 border-dashed border-gray-300 rounded-xl p-2 md:p-4 focus:outline-none resize-none" />
                   ) : (
-                    <div className="text-lg md:text-2xl font-bold text-gray-700 whitespace-pre-wrap">{quote}</div>
+                    <div className="text-base md:text-2xl font-bold text-gray-700 whitespace-pre-wrap">{quote}</div>
                   )}
                 </div>
 
-                <div className="mt-auto pt-4 hidden sm:block">
-                  {customImages.bottomRight ? <img src={customImages.bottomRight} className="h-32 md:h-52 object-contain" /> : <span className="text-[100px] drop-shadow-xl">👩‍🏫</span>}
+                {/* แสดงชื่อกลุ่มตรงพื้นที่ว่างด้านล่างข้อความ */}
+                <div className="w-full text-center mt-2 mb-4 px-2">
+                  <div className="inline-block bg-rose-50 border-2 border-rose-200 text-rose-800 font-bold px-4 md:px-6 py-1.5 md:py-2 rounded-2xl shadow-sm text-sm md:text-xl">
+                     กลุ่ม: {groups.find(g => g.id === activeGroupId)?.name || ''}
+                  </div>
+                </div>
+
+                <div className="mt-auto pt-2 md:pt-4 hidden sm:block">
+                  {customImages.bottomRight ? <img src={customImages.bottomRight} className="h-20 md:h-52 object-contain" /> : <span className="text-[60px] md:text-[100px] drop-shadow-xl">👩‍🏫</span>}
                 </div>
               </div>
             </div>
 
             {/* Footer Contacts */}
-            <div className="px-3 md:px-8 mt-2 pb-2 z-10 relative">
-              <div className="bg-rose-50 border-2 md:border-[3px] border-rose-200 rounded-xl md:rounded-2xl p-3 md:p-6 flex flex-col sm:flex-row justify-center items-center gap-3 md:gap-14 text-sm md:text-2xl font-bold text-gray-700">
-                 <div>📞 {isAdmin ? <input value={contactInfo.tel} onChange={e=>setContactInfo({...contactInfo,tel:e.target.value})} className="bg-transparent border-b border-gray-400 w-28 md:w-36 text-center text-rose-600"/> : <span className="text-rose-600">{contactInfo.tel}</span>}</div>
-                 <div>📘 {isAdmin ? <input value={contactInfo.fb} onChange={e=>setContactInfo({...contactInfo,fb:e.target.value})} className="bg-transparent border-b border-gray-400 w-32 md:w-48 text-center text-blue-600"/> : <span className="text-blue-600">{contactInfo.fb}</span>}</div>
-                 <div>📱 {isAdmin ? <input value={contactInfo.line} onChange={e=>setContactInfo({...contactInfo,line:e.target.value})} className="bg-transparent border-b border-gray-400 w-28 md:w-44 text-center text-green-600"/> : <span className="text-green-600">{contactInfo.line}</span>}</div>
+            <div className="px-2 md:px-8 mt-1 pb-2 z-10 relative">
+              <div className="bg-rose-50 border-2 md:border-[3px] border-rose-200 rounded-lg md:rounded-2xl p-2 md:p-6 flex flex-wrap justify-center items-center gap-2 md:gap-14 text-xs md:text-2xl font-bold text-gray-700">
+                 <div className="flex items-center">📞 {isAdmin ? <input value={contactInfo.tel} onChange={e=>setContactInfo({...contactInfo,tel:e.target.value})} className="bg-transparent border-b border-gray-400 w-24 md:w-36 text-center text-rose-600 ml-1"/> : <span className="text-rose-600 ml-1">{contactInfo.tel}</span>}</div>
+                 <div className="flex items-center">📘 {isAdmin ? <input value={contactInfo.fb} onChange={e=>setContactInfo({...contactInfo,fb:e.target.value})} className="bg-transparent border-b border-gray-400 w-28 md:w-48 text-center text-blue-600 ml-1"/> : <span className="text-blue-600 ml-1">{contactInfo.fb}</span>}</div>
+                 <div className="flex items-center">📱 {isAdmin ? <input value={contactInfo.line} onChange={e=>setContactInfo({...contactInfo,line:e.target.value})} className="bg-transparent border-b border-gray-400 w-24 md:w-44 text-center text-green-600 ml-1"/> : <span className="text-green-600 ml-1">{contactInfo.line}</span>}</div>
               </div>
             </div>
           </div>
@@ -739,102 +817,104 @@
               
               {/* Groups & Batch Select */}
               <div className="bg-indigo-50 p-4 md:p-8 rounded-[24px] md:rounded-[32px] border-[3px] border-indigo-200">
-                <h3 className="text-xl md:text-2xl font-bold flex items-center gap-2 mb-4 text-indigo-900 border-b-2 border-indigo-200 pb-2"><Icons.UserPlus/> จัดการกลุ่ม และตาราง</h3>
+                <h3 className="text-lg md:text-2xl font-bold flex items-center gap-2 mb-4 text-indigo-900 border-b-2 border-indigo-200 pb-2"><Icons.UserPlus className="w-5 h-5 md:w-6 md:h-6"/> จัดการกลุ่ม และตาราง</h3>
                 <div className="flex flex-col md:flex-row gap-4 mb-6">
-                  <div className="flex-grow flex gap-2 overflow-x-auto pb-2 custom-scrollbar">
+                  <div className="flex-grow flex gap-2 overflow-x-auto pb-2 custom-scrollbar w-full">
                     {groups.map(g => (
-                      <div key={g.id} className={`flex items-center gap-2 px-4 py-2 rounded-xl cursor-pointer border-2 shrink-0 ${g.id===activeGroupId?'bg-indigo-500 text-white border-indigo-600':'bg-white text-gray-600 border-gray-200'}`}>
+                      <div key={g.id} className={`flex items-center gap-2 px-3 py-2 md:px-4 rounded-xl cursor-pointer border-2 shrink-0 ${g.id===activeGroupId?'bg-indigo-500 text-white border-indigo-600':'bg-white text-gray-600 border-gray-200'}`}>
                         <span onClick={()=>setActiveGroupId(g.id)} className="font-bold text-sm md:text-base">{g.name}</span>
                         {groups.length>1 && <button onClick={()=>handleDeleteGroup(g.id)} className="w-5 h-5 rounded-full bg-black/20 text-white flex items-center justify-center text-xs font-black hover:bg-red-500">×</button>}
                       </div>
                     ))}
                   </div>
                   <div className="flex gap-2 min-w-max">
-                    <input type="text" value={newGroupName} onChange={e=>setNewGroupName(e.target.value)} placeholder="ชื่อกลุ่มใหม่" className="px-3 py-2 border-2 rounded-xl text-sm md:text-base w-32 md:w-40" />
+                    <input type="text" value={newGroupName} onChange={e=>setNewGroupName(e.target.value)} placeholder="ชื่อกลุ่มใหม่" className="px-3 py-2 border-2 rounded-xl text-sm md:text-base w-28 md:w-40" />
                     <button onClick={handleAddGroup} className="bg-indigo-600 text-white px-3 py-2 rounded-xl font-bold text-sm md:text-base">เพิ่มกลุ่ม</button>
                   </div>
                 </div>
-                <div className="bg-white p-4 rounded-xl border-2 border-indigo-100 flex flex-col md:flex-row items-center gap-4 shadow-sm">
-                  <span className="font-bold text-indigo-800 text-sm md:text-base whitespace-nowrap">จัดตารางรวดเดียว:</span>
-                  <div className="flex flex-wrap gap-2 justify-center">
+                <div className="bg-white p-4 rounded-xl border-2 border-indigo-100 flex flex-col md:flex-row items-center md:items-start gap-4 shadow-sm">
+                  <span className="font-bold text-indigo-800 text-sm md:text-base whitespace-nowrap mt-1">จัดตารางรวดเดียว:</span>
+                  <div className="flex flex-wrap gap-2 justify-center md:justify-start w-full">
                     {dayNamesShort.map((day, idx) => (
                       <button key={day} onClick={()=>{
                         if(batchWeekdays.includes(idx)) setBatchWeekdays(batchWeekdays.filter(d=>d!==idx));
                         else setBatchWeekdays([...batchWeekdays, idx]);
-                      }} className={`px-2 md:px-3 py-1 rounded border-2 font-bold text-xs md:text-sm ${batchWeekdays.includes(idx)?'bg-indigo-500 text-white border-indigo-600':'bg-gray-50 border-gray-200'}`}>ทุก {day}</button>
+                      }} className={`px-2 md:px-3 py-1 md:py-1.5 rounded-lg border-2 font-bold text-xs md:text-sm transition ${batchWeekdays.includes(idx)?'bg-indigo-500 text-white border-indigo-600':'bg-gray-50 border-gray-200 hover:bg-gray-100'}`}>ทุก {day}</button>
                     ))}
                   </div>
-                  <button onClick={applyBatchDays} className="bg-green-500 text-white px-4 py-1.5 rounded-lg font-bold text-sm md:text-base whitespace-nowrap ml-auto w-full md:w-auto hover:bg-green-600">นำไปใช้</button>
+                  <button onClick={applyBatchDays} className="bg-green-500 text-white px-4 py-2 rounded-lg font-bold text-sm md:text-base whitespace-nowrap md:ml-auto w-full md:w-auto hover:bg-green-600 transition shadow-sm">นำไปใช้</button>
                 </div>
               </div>
 
               {/* Students & Attendance */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <div className="bg-white p-4 md:p-8 rounded-[24px] md:rounded-[32px] border-[3px] border-gray-200 shadow-sm">
-                  <h3 className="text-xl md:text-2xl font-bold mb-4 flex items-center gap-2 text-blue-800"><Icons.UserPlus className="text-blue-600"/> รายชื่อนักเรียน</h3>
+                  <h3 className="text-lg md:text-2xl font-bold mb-4 flex items-center gap-2 text-blue-800"><Icons.UserPlus className="text-blue-600 w-5 h-5 md:w-6 md:h-6"/> รายชื่อนักเรียน</h3>
                   <form onSubmit={handleAddStudent} className="flex gap-2 mb-4">
-                    <input type="text" value={newStudentName} onChange={e=>setNewStudentName(e.target.value)} placeholder="ชื่อนักเรียน..." className="flex-grow px-4 py-2 bg-gray-50 border-2 rounded-xl focus:border-blue-400 focus:outline-none font-bold" />
-                    <button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded-xl font-bold hover:bg-blue-700">เพิ่ม</button>
+                    <input type="text" value={newStudentName} onChange={e=>setNewStudentName(e.target.value)} placeholder="ชื่อนักเรียน..." className="flex-grow px-3 py-2 md:px-4 bg-gray-50 border-2 rounded-xl focus:border-blue-400 focus:outline-none font-bold text-sm md:text-base" />
+                    <button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded-xl font-bold hover:bg-blue-700 text-sm md:text-base">เพิ่ม</button>
                   </form>
                   <div className="space-y-2 max-h-[350px] overflow-y-auto custom-scrollbar pr-2">
                     {students.map((s, i) => (
-                      <div key={s.id} className="flex justify-between items-center bg-gray-50 p-3 rounded-xl border-2 hover:border-blue-200">
+                      <div key={s.id} className="flex justify-between items-center bg-gray-50 p-2 md:p-3 rounded-xl border-2 hover:border-blue-200 transition">
                         <span className="font-bold text-sm md:text-lg">{i+1}. {s.name}</span>
-                        <button onClick={()=>handleRemoveStudent(s.id)} className="text-red-500 p-1 bg-white rounded border hover:bg-red-500 hover:text-white transition"><Icons.Trash2 className="w-5 h-5"/></button>
+                        <button onClick={()=>handleRemoveStudent(s.id)} className="text-red-500 p-1 bg-white rounded-lg border hover:bg-red-500 hover:text-white transition"><Icons.Trash2 className="w-4 h-4 md:w-5 md:h-5"/></button>
                       </div>
                     ))}
+                    {students.length === 0 && <div className="text-center text-gray-400 font-bold py-4 text-sm">ยังไม่มีรายชื่อนักเรียน</div>}
                   </div>
                 </div>
 
                 <div className={`p-4 md:p-8 rounded-[24px] md:rounded-[32px] border-[3px] transition-colors ${selectedDate ? 'bg-white border-green-200 shadow-sm' : 'bg-gray-50 border-gray-200'}`}>
-                  <h3 className="text-xl md:text-2xl font-bold mb-4 flex items-center gap-2">
-                    <Icons.CheckCircle2 className={selectedDate?"text-green-600":"text-gray-400"}/> เช็คชื่อรายวัน & สถานะ
+                  <h3 className="text-lg md:text-2xl font-bold mb-4 flex items-center gap-2">
+                    <Icons.CheckCircle2 className={`w-5 h-5 md:w-6 md:h-6 ${selectedDate?"text-green-600":"text-gray-400"}`}/> เช็คชื่อรายวัน & สถานะ
                   </h3>
                   {!selectedDate ? (
-                    <div className="text-center py-10 text-gray-400 font-bold">คลิกเลือกวันที่บนตารางเพื่อเช็คชื่อ หรือเพิ่มข้อความพิเศษ</div>
+                    <div className="text-center py-10 text-gray-400 font-bold text-sm md:text-base px-4">คลิกเลือกวันที่บนตารางปฏิทิน<br className="md:hidden"/>เพื่อเช็คชื่อ หรือเพิ่มข้อความพิเศษ</div>
                   ) : (
                     <div>
-                      <div className="font-black text-lg md:text-xl mb-4 bg-blue-50 p-3 rounded-xl text-center text-blue-900 border-2 border-blue-100">
+                      <div className="font-black text-base md:text-xl mb-4 bg-blue-50 p-2 md:p-3 rounded-xl text-center text-blue-900 border-2 border-blue-100">
                         {new Date(selectedDate).toLocaleDateString('th-TH', {dateStyle: 'long'})}
                       </div>
                       
                       <div className="flex flex-col sm:flex-row gap-2 mb-4">
-                        <button onClick={()=>toggleClassDay(selectedDate)} className={`flex-1 py-2 md:py-3 rounded-xl font-bold flex items-center justify-center gap-2 border-2 shadow-sm ${classDays.has(selectedDate) ? 'bg-red-500 text-white border-red-600' : 'bg-white text-gray-700 border-gray-300'}`}>
-                          <Icons.Heart className="w-5 h-5" fill={classDays.has(selectedDate) ? "white" : "none"}/>
+                        <button onClick={()=>toggleClassDay(selectedDate)} className={`flex-1 py-2 md:py-3 rounded-xl font-bold flex items-center justify-center gap-2 border-2 shadow-sm text-sm md:text-base transition ${classDays.has(selectedDate) ? 'bg-red-500 text-white border-red-600 hover:bg-red-600' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'}`}>
+                          <Icons.Heart className="w-4 h-4 md:w-5 md:h-5" fill={classDays.has(selectedDate) ? "white" : "none"}/>
                           {classDays.has(selectedDate) ? 'ยกเลิกคลาสเรียน' : 'ตั้งเป็นวันมีเรียน'}
                         </button>
                       </div>
 
                       {/* ส่วนเพิ่มข้อความในปฏิทินแบบด่วน */}
-                      <div className="mb-4 bg-gray-50 p-3 rounded-xl border-2 border-gray-200">
-                         <label className="text-sm font-bold text-gray-700 mb-2 block">ข้อความพิเศษในช่องปฏิทิน:</label>
-                         <div className="flex flex-col sm:flex-row gap-2 mb-2">
+                      <div className="mb-4 bg-gray-50 p-3 md:p-4 rounded-xl border-2 border-gray-200">
+                         <label className="text-xs md:text-sm font-bold text-gray-700 mb-2 block">ข้อความพิเศษในช่องปฏิทิน:</label>
+                         <div className="flex flex-col sm:flex-row gap-2 mb-3">
                            <input type="text" value={dayNotes[selectedDate] || ''} onChange={(e) => handleDayNoteChange(selectedDate, e.target.value)} placeholder="พิมพ์ข้อความที่นี่..." className="flex-grow px-3 py-2 border-2 rounded-lg text-sm focus:outline-none focus:border-blue-400 font-bold" />
                          </div>
-                         <div className="flex gap-2">
-                           <button onClick={()=>handleDayNoteChange(selectedDate, 'เริ่มเรียน')} className="px-2 py-1 bg-green-100 text-green-700 border border-green-300 rounded text-xs font-bold hover:bg-green-200">เริ่มเรียน</button>
-                           <button onClick={()=>handleDayNoteChange(selectedDate, 'หยุดเรียน')} className="px-2 py-1 bg-red-100 text-red-700 border border-red-300 rounded text-xs font-bold hover:bg-red-200">หยุดเรียน</button>
-                           <button onClick={()=>handleDayNoteChange(selectedDate, 'สอบ')} className="px-2 py-1 bg-purple-100 text-purple-700 border border-purple-300 rounded text-xs font-bold hover:bg-purple-200">สอบ</button>
-                           <button onClick={()=>handleDayNoteChange(selectedDate, '')} className="px-2 py-1 bg-gray-200 text-gray-600 border border-gray-300 rounded text-xs font-bold hover:bg-gray-300">ลบข้อความ</button>
+                         <div className="flex flex-wrap gap-2">
+                           <button onClick={()=>handleDayNoteChange(selectedDate, 'เริ่มเรียน')} className="px-2 py-1 md:px-3 md:py-1.5 bg-green-100 text-green-700 border border-green-300 rounded-lg text-xs md:text-sm font-bold hover:bg-green-200 transition">เริ่มเรียน</button>
+                           <button onClick={()=>handleDayNoteChange(selectedDate, 'หยุดเรียน')} className="px-2 py-1 md:px-3 md:py-1.5 bg-red-100 text-red-700 border border-red-300 rounded-lg text-xs md:text-sm font-bold hover:bg-red-200 transition">หยุดเรียน</button>
+                           <button onClick={()=>handleDayNoteChange(selectedDate, 'สอบ')} className="px-2 py-1 md:px-3 md:py-1.5 bg-purple-100 text-purple-700 border border-purple-300 rounded-lg text-xs md:text-sm font-bold hover:bg-purple-200 transition">สอบ</button>
+                           <button onClick={()=>handleDayNoteChange(selectedDate, '')} className="px-2 py-1 md:px-3 md:py-1.5 bg-gray-200 text-gray-600 border border-gray-300 rounded-lg text-xs md:text-sm font-bold hover:bg-gray-300 transition">ลบข้อความ</button>
                          </div>
                       </div>
 
                       {classDays.has(selectedDate) && (
-                        <div className="space-y-3 max-h-[300px] overflow-y-auto custom-scrollbar pr-2 bg-green-50 p-3 rounded-xl border-2 border-green-100">
-                          <p className="font-bold text-green-800 text-sm">สถานะการเรียน</p>
+                        <div className="space-y-3 max-h-[300px] overflow-y-auto custom-scrollbar pr-2 bg-green-50 p-3 md:p-4 rounded-xl border-2 border-green-100">
+                          <p className="font-bold text-green-800 text-xs md:text-sm mb-1">สถานะการเรียน</p>
                           {students.map(s => {
-                            const attStatus = (attendance[selectedDate] || {})[s.id]; // 'attended', 'makeup', or undefined
+                            const attStatus = (attendance[selectedDate] || {})[s.id]; 
                             return (
-                              <div key={s.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 rounded-xl bg-white border-2 border-gray-200">
+                              <div key={s.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-2 md:p-3 rounded-xl bg-white border-2 border-gray-200">
                                 <span className={`font-bold text-sm md:text-base ${attStatus==='attended'?'text-green-600':attStatus==='makeup'?'text-blue-500':''}`}>{s.name}</span>
-                                <div className="flex gap-1 bg-gray-100 p-1 rounded-lg">
-                                  <button onClick={()=>setStudentAttendanceStatus(selectedDate, s.id, 'attended')} className={`px-2 py-1 md:px-3 md:py-1 rounded text-xs md:text-sm font-bold transition-colors ${attStatus==='attended'?'bg-green-500 text-white shadow':'text-gray-500 hover:bg-gray-200'}`}>✅ มาเรียน</button>
-                                  <button onClick={()=>setStudentAttendanceStatus(selectedDate, s.id, 'makeup')} className={`px-2 py-1 md:px-3 md:py-1 rounded text-xs md:text-sm font-bold transition-colors ${attStatus==='makeup'?'bg-blue-500 text-white shadow':'text-gray-500 hover:bg-gray-200'}`}>📘 ชดเชย</button>
-                                  <button onClick={()=>setStudentAttendanceStatus(selectedDate, s.id, null)} className={`px-2 py-1 md:px-3 md:py-1 rounded text-xs md:text-sm font-bold transition-colors ${!attStatus?'bg-red-400 text-white shadow':'text-gray-500 hover:bg-gray-200'}`}>❌ ขาด</button>
+                                <div className="flex flex-wrap gap-1 bg-gray-100 p-1 rounded-lg w-full sm:w-auto justify-center sm:justify-start">
+                                  <button onClick={()=>setStudentAttendanceStatus(selectedDate, s.id, 'attended')} className={`flex-1 sm:flex-none px-2 py-1.5 md:px-3 rounded text-xs md:text-sm font-bold transition-colors ${attStatus==='attended'?'bg-green-500 text-white shadow':'text-gray-500 hover:bg-gray-200'}`}>✅ มาเรียน</button>
+                                  <button onClick={()=>setStudentAttendanceStatus(selectedDate, s.id, 'makeup')} className={`flex-1 sm:flex-none px-2 py-1.5 md:px-3 rounded text-xs md:text-sm font-bold transition-colors ${attStatus==='makeup'?'bg-blue-500 text-white shadow':'text-gray-500 hover:bg-gray-200'}`}>📘 ชดเชย</button>
+                                  <button onClick={()=>setStudentAttendanceStatus(selectedDate, s.id, null)} className={`flex-1 sm:flex-none px-2 py-1.5 md:px-3 rounded text-xs md:text-sm font-bold transition-colors ${!attStatus?'bg-red-400 text-white shadow':'text-gray-500 hover:bg-gray-200'}`}>❌ ขาด</button>
                                 </div>
                               </div>
                             )
                           })}
+                          {students.length === 0 && <div className="text-sm font-bold text-gray-500 text-center py-2">กรุณาเพิ่มรายชื่อนักเรียนก่อน</div>}
                         </div>
                       )}
                     </div>
@@ -846,104 +926,113 @@
               <div className="bg-amber-50 p-4 md:p-8 rounded-[24px] md:rounded-[32px] border-[3px] border-amber-200 flex flex-col lg:flex-row gap-6">
                 
                 {/* Revenue Dashboard */}
-                <div className="w-full lg:w-1/3 bg-white p-4 md:p-6 rounded-2xl border-2 border-amber-300 shadow-sm flex flex-col justify-center">
-                   <h4 className="text-xl font-black text-amber-800 mb-4 border-b-2 border-amber-100 pb-2 text-center">📊 สรุปรายรับแอดมิน</h4>
+                <div className="w-full lg:w-1/3 bg-white p-4 md:p-6 rounded-2xl border-2 border-amber-300 shadow-sm flex flex-col justify-center h-fit">
+                   <h4 className="text-lg md:text-xl font-black text-amber-800 mb-4 border-b-2 border-amber-100 pb-2 text-center">📊 สรุปรายรับแอดมิน</h4>
                    
                    <div className="bg-gray-50 p-3 rounded-xl mb-3 border border-gray-200 flex justify-between items-center">
-                     <span className="font-bold text-gray-600 text-sm">ยอดรวมที่ต้องได้:</span>
-                     <span className="font-black text-gray-800 text-lg">฿{totalExpectedRevenue.toLocaleString()}</span>
+                     <span className="font-bold text-gray-600 text-xs md:text-sm">ยอดรวมที่ต้องได้:</span>
+                     <span className="font-black text-gray-800 text-base md:text-lg">฿{totalExpectedRevenue.toLocaleString()}</span>
                    </div>
                    
                    <div className="bg-green-50 p-3 rounded-xl mb-3 border border-green-200 flex justify-between items-center">
-                     <span className="font-bold text-green-700 text-sm">เก็บเงินแล้ว (จ่ายแล้ว):</span>
-                     <span className="font-black text-green-700 text-2xl">฿{totalCollectedRevenue.toLocaleString()}</span>
+                     <span className="font-bold text-green-700 text-xs md:text-sm">เก็บเงินแล้ว (จ่ายแล้ว):</span>
+                     <span className="font-black text-green-700 text-xl md:text-2xl">฿{totalCollectedRevenue.toLocaleString()}</span>
                    </div>
                    
                    <div className="bg-red-50 p-3 rounded-xl border border-red-200 flex justify-between items-center">
-                     <span className="font-bold text-red-600 text-sm">ยอดรอชำระ (ค้างจ่าย):</span>
-                     <span className="font-black text-red-600 text-lg">฿{totalPendingRevenue.toLocaleString()}</span>
+                     <span className="font-bold text-red-600 text-xs md:text-sm">ยอดรอชำระ (ค้างจ่าย):</span>
+                     <span className="font-black text-red-600 text-base md:text-lg">฿{totalPendingRevenue.toLocaleString()}</span>
                    </div>
                 </div>
 
                 {/* Table part */}
-                <div className="w-full lg:w-2/3 overflow-x-auto">
+                <div className="w-full lg:w-2/3">
                   <div className="flex flex-col sm:flex-row justify-between items-center mb-4 gap-4">
-                    <h3 className="text-xl md:text-2xl font-bold flex items-center gap-2 text-amber-900"><Icons.DollarSign/> ระบบค่าเรียน</h3>
-                    <div className="flex gap-2">
+                    <h3 className="text-lg md:text-2xl font-bold flex items-center gap-2 text-amber-900"><Icons.DollarSign className="w-5 h-5 md:w-6 md:h-6"/> ระบบค่าเรียน</h3>
+                    <div className="flex flex-wrap justify-center gap-2 w-full sm:w-auto">
                       <div className="bg-white px-3 py-1.5 rounded-xl border-2 border-amber-200 flex items-center gap-2">
-                        <span className="font-bold text-sm">ค่าเรียน/คน:</span>
-                        <input type="number" value={defaultFee} onChange={e=>setDefaultFee(Number(e.target.value))} className="w-16 font-bold text-center border-b focus:outline-none" />
+                        <span className="font-bold text-xs md:text-sm">ค่าเรียน/คน:</span>
+                        <input type="number" value={defaultFee} onChange={e=>setDefaultFee(Number(e.target.value))} className="w-12 md:w-16 font-bold text-center border-b focus:outline-none text-sm md:text-base" />
                       </div>
-                      <button onClick={handleExportCSV} className="bg-emerald-500 text-white px-3 py-1.5 rounded-xl font-bold flex items-center gap-1 hover:bg-emerald-600"><Icons.Download className="w-4 h-4"/> CSV</button>
+                      <button onClick={handleExportCSV} className="bg-emerald-500 text-white px-3 py-1.5 rounded-xl font-bold flex items-center gap-1 hover:bg-emerald-600 text-sm md:text-base"><Icons.Download className="w-4 h-4"/> CSV</button>
                     </div>
                   </div>
                   
-                  <table className="w-full min-w-[450px] border-collapse bg-white rounded-xl overflow-hidden border-2 border-amber-200 text-sm md:text-base shadow-sm">
-                    <thead className="bg-amber-100 text-amber-900">
-                      <tr><th className="p-3 text-center w-12">ลำดับ</th><th className="p-3 text-left">ชื่อ</th><th className="p-3 text-center w-32">สถานะ</th><th className="p-3 text-center w-28">จำนวนเงิน</th></tr>
-                    </thead>
-                    <tbody>
-                      {students.map((s, idx) => {
-                        const data = (payments[currentMonthKey]||{})[s.id] || {status:'pending', amount:defaultFee};
-                        const updatePay = (field, val) => {
-                          const mData = payments[currentMonthKey]||{};
-                          setPayments({...payments, [currentMonthKey]:{...mData, [s.id]:{...data, [field]:val}}});
-                        };
-                        return (
-                          <tr key={s.id} className="border-b border-gray-100 hover:bg-amber-50/30 transition">
-                            <td className="p-3 text-center font-bold text-gray-500">{idx+1}</td>
-                            <td className="p-3 font-bold text-gray-800">{s.name}</td>
-                            <td className="p-3 text-center">
-                              <select value={data.status} onChange={e=>updatePay('status',e.target.value)} className={`p-1.5 md:p-2 rounded-lg font-bold border-2 text-xs md:text-sm w-full outline-none ${data.status==='before'?'bg-green-100 border-green-300 text-green-800':data.status==='after'?'bg-blue-100 border-blue-300 text-blue-800':'bg-red-50 border-red-200 text-red-600'}`}>
-                                <option value="pending">⏳ รอชำระ</option><option value="before">✅ ก่อนเรียน</option><option value="after">☑️ หลังเรียน</option>
-                              </select>
-                            </td>
-                            <td className="p-3 text-center">
-                              <input type="number" value={data.amount} onChange={e=>updatePay('amount',e.target.value)} disabled={data.status==='pending'} className={`w-full p-1.5 rounded-lg text-center font-bold border-2 outline-none ${data.status==='pending'?'bg-gray-100 text-gray-400':'bg-white border-amber-300 text-amber-800'}`} />
-                            </td>
-                          </tr>
-                        )
-                      })}
-                    </tbody>
-                  </table>
+                  {/* เพิ่ม container เพื่อกันตารางทะลุหน้าจอมือถือ */}
+                  <div className="w-full overflow-x-auto pb-2 custom-scrollbar border-2 border-amber-200 rounded-xl shadow-sm">
+                    <table className="w-full min-w-[350px] border-collapse bg-white text-xs md:text-base">
+                      <thead className="bg-amber-100 text-amber-900">
+                        <tr>
+                          <th className="p-2 md:p-3 text-center w-10 md:w-12">ที่</th>
+                          <th className="p-2 md:p-3 text-left">ชื่อ</th>
+                          <th className="p-2 md:p-3 text-center w-28 md:w-32">สถานะ</th>
+                          <th className="p-2 md:p-3 text-center w-24 md:w-28">ยอดเงิน</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {students.map((s, idx) => {
+                          const data = (payments[currentMonthKey]||{})[s.id] || {status:'pending', amount:defaultFee};
+                          const updatePay = (field, val) => {
+                            const mData = payments[currentMonthKey]||{};
+                            setPayments({...payments, [currentMonthKey]:{...mData, [s.id]:{...data, [field]:val}}});
+                          };
+                          return (
+                            <tr key={s.id} className="border-b border-gray-100 hover:bg-amber-50/30 transition">
+                              <td className="p-2 md:p-3 text-center font-bold text-gray-500">{idx+1}</td>
+                              <td className="p-2 md:p-3 font-bold text-gray-800">{s.name}</td>
+                              <td className="p-2 md:p-3 text-center">
+                                <select value={data.status} onChange={e=>updatePay('status',e.target.value)} className={`p-1 md:p-2 rounded-lg font-bold border-2 text-[10px] md:text-sm w-full outline-none ${data.status==='before'?'bg-green-100 border-green-300 text-green-800':data.status==='after'?'bg-blue-100 border-blue-300 text-blue-800':'bg-red-50 border-red-200 text-red-600'}`}>
+                                  <option value="pending">⏳ รอชำระ</option><option value="before">✅ ก่อนเรียน</option><option value="after">☑️ หลังเรียน</option>
+                                </select>
+                              </td>
+                              <td className="p-2 md:p-3 text-center">
+                                <input type="number" value={data.amount} onChange={e=>updatePay('amount',e.target.value)} disabled={data.status==='pending'} className={`w-full p-1 md:p-1.5 rounded-lg text-center font-bold border-2 outline-none text-xs md:text-sm ${data.status==='pending'?'bg-gray-100 text-gray-400':'bg-white border-amber-300 text-amber-800'}`} />
+                              </td>
+                            </tr>
+                          )
+                        })}
+                        {students.length === 0 && <tr><td colSpan="4" className="p-4 text-center text-gray-400 font-bold text-sm">ไม่มีข้อมูลนักเรียน</td></tr>}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               </div>
             </div>
           )}
 
           {/* Stats Summary */}
-          <div className="max-w-6xl mx-auto mt-6 bg-gradient-to-br from-pink-100 to-rose-100 p-6 md:p-10 rounded-[32px] md:rounded-[40px] shadow-lg border-[4px] md:border-[6px] border-white relative overflow-hidden">
-             <h3 className="text-2xl md:text-3xl font-black mb-6 text-rose-800 text-center flex flex-col md:flex-row items-center justify-center gap-3">
-               <span className="bg-white p-2 rounded-2xl shadow-sm transform -rotate-6 text-3xl">🏆</span> 
+          <div className="max-w-6xl mx-auto mt-6 bg-gradient-to-br from-pink-100 to-rose-100 p-4 md:p-10 rounded-[32px] md:rounded-[40px] shadow-lg border-[4px] md:border-[6px] border-white relative overflow-hidden">
+             <h3 className="text-xl md:text-3xl font-black mb-4 md:mb-6 text-rose-800 text-center flex flex-col md:flex-row items-center justify-center gap-2 md:gap-3">
+               <span className="bg-white p-2 rounded-2xl shadow-sm transform -rotate-6 text-2xl md:text-3xl">🏆</span> 
                สรุปการมาเรียน เดือน{monthNames[currentMonth]}
              </h3>
              {totalClassDaysThisMonth === 0 ? (
-               <div className="text-center bg-white/60 p-8 rounded-3xl"><p className="text-xl font-bold text-rose-600">ยังไม่มีการจัดตารางเรียนเดือนนี้ค่ะ</p></div>
+               <div className="text-center bg-white/60 p-6 md:p-8 rounded-3xl"><p className="text-base md:text-xl font-bold text-rose-600">ยังไม่มีการจัดตารางเรียนเดือนนี้ค่ะ</p></div>
              ) : (
                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
                  {studentStats.map(stat => (
                    <div key={stat.id} className="bg-white p-4 md:p-6 rounded-[24px] shadow-sm border-[3px] border-rose-100 flex flex-col h-full hover:shadow-md transition">
-                     <div className="font-bold text-gray-800 text-lg md:text-xl mb-4 flex justify-between">
-                        <span>{stat.name}</span>
-                        <span>{stat.missed===0?'🌟':''}</span>
+                     <div className="font-bold text-gray-800 text-base md:text-xl mb-3 md:mb-4 flex justify-between items-center">
+                        <span className="truncate pr-2">{stat.name}</span>
+                        <span className="shrink-0">{stat.missed===0?'🌟':''}</span>
                      </div>
-                     <div className="bg-rose-50 rounded-xl p-3 mb-4">
-                       <div className="flex justify-between items-end mb-2 text-sm md:text-base">
+                     <div className="bg-rose-50 rounded-xl p-3 mb-3 md:mb-4">
+                       <div className="flex justify-between items-end mb-2 text-xs md:text-base">
                          <span className="font-bold text-gray-500">รวมเข้าเรียนแล้ว</span>
-                         <span className="font-black text-rose-600 text-xl">{stat.attended + stat.makeup}<span className="text-gray-400 text-sm">/{totalClassDaysThisMonth}</span></span>
+                         <span className="font-black text-rose-600 text-lg md:text-xl">{stat.attended + stat.makeup}<span className="text-gray-400 text-xs md:text-sm">/{totalClassDaysThisMonth}</span></span>
                        </div>
-                       <div className="w-full bg-gray-200 rounded-full h-3 flex overflow-hidden">
+                       <div className="w-full bg-gray-200 rounded-full h-2 md:h-3 flex overflow-hidden">
                           <div className="bg-green-400 h-full transition-all" style={{width: `${(stat.attended/totalClassDaysThisMonth)*100}%`}}></div>
                           <div className="bg-blue-400 h-full transition-all" style={{width: `${(stat.makeup/totalClassDaysThisMonth)*100}%`}}></div>
                        </div>
-                       <div className="flex gap-3 justify-center mt-3 text-xs font-bold text-gray-600 bg-white p-2 rounded-lg border border-gray-200">
+                       <div className="flex gap-2 justify-center mt-3 text-[10px] md:text-xs font-bold text-gray-600 bg-white p-1.5 md:p-2 rounded-lg border border-gray-200 flex-wrap">
                           <span>✅ มา: {stat.attended}</span>
                           <span>📘 ชดเชย: {stat.makeup}</span>
                           <span className={stat.missed > 0 ? "text-red-500" : ""}>❌ ขาด: {stat.missed}</span>
                        </div>
                      </div>
-                     <div className="mt-auto text-center font-bold text-sm md:text-base">
-                       {stat.missed === 0 ? <span className="text-green-600 bg-green-50 px-3 py-1.5 rounded-lg border border-green-200">มาครบ 100% เก่งมาก!</span> : <span className="text-red-500 bg-red-50 px-3 py-1.5 rounded-lg border border-red-200">ขาดเรียนไป {stat.missed} วัน</span>}
+                     <div className="mt-auto text-center font-bold text-xs md:text-sm">
+                       {stat.missed === 0 ? <span className="inline-block text-green-600 bg-green-50 px-2 py-1 md:px-3 md:py-1.5 rounded-lg border border-green-200 w-full">มาครบ 100% เก่งมาก!</span> : <span className="inline-block text-red-500 bg-red-50 px-2 py-1 md:px-3 md:py-1.5 rounded-lg border border-red-200 w-full">ขาดเรียนไป {stat.missed} วัน</span>}
                      </div>
                    </div>
                  ))}
