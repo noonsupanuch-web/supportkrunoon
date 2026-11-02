@@ -17,12 +17,9 @@
   <!-- html2canvas -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 
-  <!-- Firebase integration -->
-  <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-    import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-    import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-    window.FirebaseLibs = { initializeApp, getAuth, signInAnonymously, signInWithCustomToken, getFirestore, doc, setDoc, onSnapshot };
+  <!-- Backend: Google Sheets via Apps Script -->
+  <script>
+    window.GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbx7Wz-URwvOaiLvoAqf131i4ve14xKg01q28wVUSWfYv6mZJd0oPtu5uFQbFW7w7ADTLg/exec"; 
   </script>
 
   <!-- Default App Icons & PWA Setup -->
@@ -198,81 +195,67 @@
       const [defaultFee, setDefaultFee] = useState(1500);
       const [cloudStatus, setCloudStatus] = useState('');
 
-      // --- Firebase Cloud Sync (Auto-Save & Load) ---
+      // --- Google Sheets Sync (Auto-Save & Load) ---
+      const GAS_URL = window.GAS_WEB_APP_URL;
+
+      // โหลดข้อมูลเริ่มต้นเมื่อเปิดเว็บ
       useEffect(() => {
-        let unsubscribe = null;
-        const initFirebase = async () => {
-          if (!window.FirebaseLibs) {
-             setTimeout(initFirebase, 200);
-             return;
-          }
+        if (!GAS_URL || GAS_URL === "YOUR_GOOGLE_APPS_SCRIPT_URL_HERE") {
+          setCloudStatus('💻 ใช้งานออฟไลน์ (ยังไม่ได้เชื่อม Google Sheets)');
+          return;
+        }
+
+        const loadData = async () => {
           try {
-            setCloudStatus('☁️ กำลังเชื่อมต่อ...');
-            const configStr = typeof __firebase_config !== 'undefined' ? __firebase_config : null;
-            if (!configStr) {
-               setCloudStatus('💻 บันทึกในเครื่อง');
-               return; 
-            }
-            const config = JSON.parse(configStr);
-            const app = window.FirebaseLibs.initializeApp(config);
-            const auth = window.FirebaseLibs.getAuth(app);
+            setCloudStatus('☁️ กำลังเชื่อมต่อ Sheets...');
+            const response = await fetch(GAS_URL);
+            const data = await response.json();
             
-            if (typeof __initial_auth_token !== 'undefined') {
-              await window.FirebaseLibs.signInWithCustomToken(auth, __initial_auth_token);
+            if (data && Object.keys(data).length > 0) {
+               if (data.groups) setGroups(data.groups);
+               if (data.teacherName) setTeacherName(data.teacherName);
+               if (data.quote) setQuote(data.quote);
+               if (data.contactInfo) setContactInfo(data.contactInfo);
+               if (data.defaultFee) setDefaultFee(data.defaultFee);
+               if (data.appIcon) setAppIcon(data.appIcon);
+               if (data.groupData) {
+                  const parsed = {};
+                  for (const k in data.groupData) {
+                     parsed[k] = {
+                        ...data.groupData[k],
+                        classDays: new Set(data.groupData[k].classDays || [])
+                     };
+                  }
+                  setGroupData(parsed);
+               }
+               setCloudStatus('☁️ ข้อมูลล่าสุดแล้ว');
             } else {
-              await window.FirebaseLibs.signInAnonymously(auth);
+               setCloudStatus('☁️ ตารางใหม่พร้อมใช้งาน');
             }
-            
-            const db = window.FirebaseLibs.getFirestore(app);
-            window._db = db;
-            window._userId = auth.currentUser.uid;
-            const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-            
-            const docRef = window.FirebaseLibs.doc(db, 'artifacts', appId, 'users', window._userId, 'appData', 'mainDoc');
-            
-            unsubscribe = window.FirebaseLibs.onSnapshot(docRef, (snap) => {
-              if (snap.exists() && !window._isWritingToCloud) {
-                 const data = snap.data();
-                 if (data.groups) setGroups(data.groups);
-                 if (data.teacherName) setTeacherName(data.teacherName);
-                 if (data.quote) setQuote(data.quote);
-                 if (data.contactInfo) setContactInfo(data.contactInfo);
-                 if (data.defaultFee) setDefaultFee(data.defaultFee);
-                 if (data.appIcon) setAppIcon(data.appIcon); // โหลดรูปไอคอนแอป
-                 if (data.groupData) {
-                    const parsed = {};
-                    for (const k in data.groupData) {
-                       parsed[k] = {
-                          ...data.groupData[k],
-                          classDays: new Set(data.groupData[k].classDays || [])
-                       };
-                    }
-                    setGroupData(parsed);
-                 }
-                 setCloudStatus('☁️ ข้อมูลล่าสุดแล้ว');
-              }
-            }, (err) => {
-               console.error(err);
-               setCloudStatus('⚠️ เชื่อมต่อล้มเหลว');
-            });
           } catch(e) {
              console.error(e);
-             setCloudStatus('⚠️ เชื่อมต่อล้มเหลว');
+             setCloudStatus('⚠️ เชื่อมต่อ Sheets ล้มเหลว');
           }
         };
-        initFirebase();
-        return () => { if (unsubscribe) unsubscribe(); };
-      }, []);
+        
+        loadData();
+        
+        // ให้หน้าเว็บของผู้ปกครอง (ไม่ใช่แอดมิน) ดึงข้อมูลอัปเดตทุกๆ 15 วินาที
+        let interval;
+        if (!isAdmin) {
+           interval = setInterval(loadData, 15000);
+        }
+        return () => { if (interval) clearInterval(interval); };
+      }, [isAdmin]);
 
-      // Auto-save เมื่อมีการแก้ไขข้อมูล
+      // Auto-save บันทึกข้อมูลอัตโนมัติเมื่อแอดมินแก้ไขข้อมูล
       useEffect(() => {
-         if (!window._db || !window._userId) return;
+         if (!GAS_URL || GAS_URL === "YOUR_GOOGLE_APPS_SCRIPT_URL_HERE") return;
+         if (!isAdmin) return; // เฉพาะแอดมินเท่านั้นที่จะเป็นคนเขียนทับข้อมูลลง Google Sheets
+         
          const timer = setTimeout(async () => {
-            window._isWritingToCloud = true;
             try {
                setCloudStatus('☁️ กำลังบันทึก...');
-               const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-               const docRef = window.FirebaseLibs.doc(window._db, 'artifacts', appId, 'users', window._userId, 'appData', 'mainDoc');
                
                const serializedGroupData = {};
                for (const k in groupData) {
@@ -282,26 +265,33 @@
                   };
                }
                
-               await window.FirebaseLibs.setDoc(docRef, {
+               const payload = {
                   groups,
                   teacherName,
                   quote,
                   contactInfo,
                   defaultFee,
-                  appIcon, // เซฟไอคอนแอป
+                  appIcon,
                   groupData: serializedGroupData,
                   updatedAt: new Date().toISOString()
-               }, { merge: true });
+               };
+
+               // ส่งข้อมูลด้วย POST (ใช้ text/plain เพื่อป้องกันปัญหา Cross-Origin CORS ของ Google)
+               await fetch(GAS_URL, {
+                 method: 'POST',
+                 headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                 body: JSON.stringify(payload)
+               });
+               
                setCloudStatus('☁️ บันทึกเรียบร้อย');
             } catch(e) {
                console.error(e);
                setCloudStatus('⚠️ บันทึกผิดพลาด');
-            } finally {
-               setTimeout(() => { window._isWritingToCloud = false; }, 500);
             }
-         }, 1500); // ดีเลย์ 1.5 วินาที
+         }, 1500); // ดีเลย์ 1.5 วินาทีเพื่อไม่ให้ส่งรัวเกินไปเวลาพิมพ์
+         
          return () => clearTimeout(timer);
-      }, [groups, groupData, teacherName, quote, contactInfo, defaultFee, appIcon]);
+      }, [groups, groupData, teacherName, quote, contactInfo, defaultFee, appIcon, isAdmin]);
 
       // --- Dynamic Web App Manifest & Icon Update (PWA) ---
       useEffect(() => {
