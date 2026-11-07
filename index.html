@@ -19,7 +19,7 @@
   <!-- Backend: Google Sheets via Apps Script -->
   <script>
     // ลิงก์ Google Sheets ล่าสุดของคุณ
-    window.GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbyiypCpcFCgkPFqqVHdu8FoXWTa5fugOIR_Jjr_TW3U_nz94ztZQtAZuTHmBs2TswtH8A/exec"; 
+    window.GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbxjvha2qzD7Ks_AMdAdNZq8CBk_FulR7dYljEHTy6ptDJj3SeZ5rdWtqNuy_CXYbjXhhA/exec"; 
   </script>
 
   <!-- Default App Icons & PWA Setup -->
@@ -172,7 +172,7 @@
       // All Group Data
       const [groupData, setGroupData] = useState({
         1: {
-          monthlyStudents: {}, // เปลี่ยนมาใช้แยกรายเดือน
+          monthlyStudents: {}, 
           classDays: new Set(),
           attendance: {},
           payments: {},
@@ -683,25 +683,11 @@
       });
       const totalClassDaysThisMonth = classDaysThisMonth.length;
       
-      // Public View Combiner
+      // Display Students (สำหรับกลุ่มปัจจุบันเท่านั้น ใช้ร่วมกันทั้งแอดมินและผู้ปกครอง)
       let displayStudents = students;
-      if (!isAdmin) {
-         displayStudents = [];
-         Object.keys(groupData).forEach(gId => {
-             const g = groupData[gId];
-             (g.students || []).forEach(s => {
-                 displayStudents.push({ 
-                     ...s, 
-                     uniqueId: `${gId}-${s.id}`, 
-                     groupId: Number(gId), 
-                     groupName: groups.find(grp => grp.id === Number(gId))?.name 
-                 });
-             });
-         });
-      }
 
       const displayStudentStats = displayStudents.map(st => {
-        const gId = !isAdmin ? st.groupId : activeGroupId;
+        const gId = activeGroupId;
         const gData = groupData[gId] || {};
         const gClassDays = gData.classDays || new Set();
         const gAttendance = gData.attendance || {};
@@ -1219,7 +1205,7 @@
                     <thead className="bg-amber-100 text-amber-900">
                       <tr>
                         <th className="p-2 md:p-3 text-center w-10 md:w-12">ที่</th>
-                        <th className="p-2 md:p-3 text-left">ชื่อ {(!isAdmin && groups.length > 1) && "(กลุ่ม)"}</th>
+                        <th className="p-2 md:p-3 text-left">ชื่อนักเรียน</th>
                         <th className="p-2 md:p-3 text-center w-28 md:w-32">สถานะ</th>
                         {isAdmin && <th className="p-2 md:p-3 text-center w-24 md:w-28">ยอดเงิน</th>}
                       </tr>
@@ -1227,7 +1213,7 @@
                     <tbody>
                       {displayStudents.map((s, idx) => {
                         const sFee = s.fee || defaultFee;
-                        const gId = !isAdmin ? s.groupId : activeGroupId;
+                        const gId = activeGroupId;
                         const gPayments = (groupData[gId] || {}).payments || {};
                         const data = (gPayments[currentMonthKey]||{})[s.id] || {status:'pending', amount:sFee};
                         
@@ -1237,11 +1223,10 @@
                           setPayments({...payments, [currentMonthKey]:{...mData, [s.id]:{...data, [field]:val}}});
                         };
                         return (
-                          <tr key={!isAdmin ? s.uniqueId : s.id} className="border-b border-gray-100 hover:bg-amber-50/30 transition">
+                          <tr key={s.id} className="border-b border-gray-100 hover:bg-amber-50/30 transition">
                             <td className="p-2 md:p-3 text-center font-bold text-gray-500">{idx+1}</td>
                             <td className="p-2 md:p-3 font-bold text-gray-800">
-                              {s.name} 
-                              {!isAdmin && groups.length > 1 && <span className="text-[10px] md:text-xs text-gray-400 block font-normal">{s.groupName}</span>}
+                              {s.name}
                             </td>
                             <td className="p-2 md:p-3 text-center">
                               {isAdmin ? (
@@ -1262,7 +1247,7 @@
                           </tr>
                         )
                       })}
-                      {displayStudents.length === 0 && <tr><td colSpan={isAdmin ? "4" : "3"} className="p-4 text-center text-gray-400 font-bold text-sm">ไม่มีข้อมูลนักเรียน</td></tr>}
+                      {displayStudents.length === 0 && <tr><td colSpan={isAdmin ? "4" : "3"} className="p-4 text-center text-gray-400 font-bold text-sm">ไม่มีข้อมูลนักเรียนในกลุ่มนี้</td></tr>}
                     </tbody>
                   </table>
                 </div>
@@ -1281,11 +1266,10 @@
              ) : (
                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
                  {displayStudentStats.map(stat => (
-                   <div key={!isAdmin ? stat.uniqueId : stat.id} className="bg-white p-4 md:p-6 rounded-[24px] shadow-sm border-[3px] border-rose-100 flex flex-col h-full hover:shadow-md transition">
+                   <div key={stat.id} className="bg-white p-4 md:p-6 rounded-[24px] shadow-sm border-[3px] border-rose-100 flex flex-col h-full hover:shadow-md transition">
                      <div className="font-bold text-gray-800 text-base md:text-xl mb-3 md:mb-4 flex justify-between items-center">
                         <span className="truncate pr-2">
                            {stat.name}
-                           {!isAdmin && groups.length > 1 && <span className="text-xs text-gray-400 block font-normal">{stat.groupName}</span>}
                         </span>
                         <span className="shrink-0">{stat.missed===0 && stat.totalClassDays > 0 ?'🌟':''}</span>
                      </div>
