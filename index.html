@@ -19,7 +19,7 @@
   <!-- Backend: Google Sheets via Apps Script -->
   <script>
     // ลิงก์ Google Sheets ล่าสุดของคุณ
-    window.GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbz4ACepn3Xjk8TCeNzwe0oA4McEfO5eoUXteiSkJXoVyv4tUGNQpsCEOeXXoMXOoqTL-w/exec"; 
+    window.GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbz9Q_z6sRW-I1Ht6eGlV32aFnG20yv9GqDWz78KmgnThXkXAwv3WzVKJXCksxKBIEJzvA/exec"; 
   </script>
 
   <!-- Default App Icons & PWA Setup -->
@@ -133,11 +133,36 @@
       const [currentDate, setCurrentDate] = useState(new Date()); 
       const [selectedDate, setSelectedDate] = useState(null); 
       
+      const currentYear = currentDate.getFullYear();
+      const currentMonth = currentDate.getMonth();
+      const currentMonthKey = `${currentYear}-${currentMonth}`;
+
       // Global Data
       const [teacherName, setTeacherName] = useState('นุ่น');
       const [quote, setQuote] = useState('การเรียนแม้เหนื่อยยาก\nยอมลำบากอย่าท้อถอย\nสุดทางที่รอคอย\nคืออนาคตอันงดงาม');
-      const [appIcon, setAppIcon] = useState(null); // Web App Icon (Base64)
       
+      // Monthly Assets (แยกรูปภาพและไอคอนตามแต่ละเดือน)
+      const [monthlyAppIcons, setMonthlyAppIcons] = useState({}); 
+      const [monthlyCustomImages, setMonthlyCustomImages] = useState({});
+      
+      // --- Helper: Asset Fallback ---
+      // ฟังก์ชันช่วยดึงรูป/ไอคอนของเดือนล่าสุดมาใช้แทน (ถ้าเดือนปัจจุบันยังไม่ได้ตั้งค่า)
+      const getFallbackAsset = (assetDict, targetKey) => {
+         if (assetDict[targetKey]) return assetDict[targetKey];
+         const keys = Object.keys(assetDict);
+         if (keys.length === 0) return null;
+         // เรียงลำดับจากเดือนล่าสุดไปหาเดือนเก่า
+         keys.sort((a, b) => {
+            const [ya, ma] = a.split('-').map(Number);
+            const [yb, mb] = b.split('-').map(Number);
+            return (yb - ya) || (mb - ma);
+         });
+         return assetDict[keys[0]];
+      };
+
+      const currentAppIcon = getFallbackAsset(monthlyAppIcons, currentMonthKey);
+      const currentMonthImages = getFallbackAsset(monthlyCustomImages, currentMonthKey) || { topLeft: null, topRight: null, bottomRight: null, bottomLeft: null };
+
       // Group Management
       const [groups, setGroups] = useState([{ id: 1, name: 'กลุ่มทั่วไป' }]);
       const [activeGroupId, setActiveGroupId] = useState(1);
@@ -147,10 +172,7 @@
       // All Group Data
       const [groupData, setGroupData] = useState({
         1: {
-          students: [
-            { id: 1, name: 'ด.ช. สมชาย รักเรียน' },
-            { id: 2, name: 'ด.ญ. สมหญิง ขยันดี' }
-          ],
+          monthlyStudents: {}, // เปลี่ยนมาใช้แยกรายเดือน
           classDays: new Set(),
           attendance: {},
           payments: {},
@@ -161,7 +183,7 @@
 
       // Active Group Computed Data
       const activeGroup = groupData[activeGroupId] || {};
-      const students = activeGroup.students || [];
+      const students = (activeGroup.monthlyStudents || {})[currentMonthKey] || [];
       const classDays = activeGroup.classDays || new Set();
       const attendance = activeGroup.attendance || {};
       const payments = activeGroup.payments || {};
@@ -178,7 +200,18 @@
         }));
       };
 
-      const setStudents = (val) => updateActiveGroupData('students', val);
+      const setStudents = (val) => {
+        setGroupData(prev => {
+          const group = prev[activeGroupId];
+          const mStudents = { ...(group.monthlyStudents || {}) };
+          mStudents[currentMonthKey] = typeof val === 'function' ? val(mStudents[currentMonthKey] || []) : val;
+          return {
+            ...prev,
+            [activeGroupId]: { ...group, monthlyStudents: mStudents }
+          };
+        });
+      };
+      
       const setClassDays = (val) => updateActiveGroupData('classDays', val);
       const setAttendance = (val) => updateActiveGroupData('attendance', val);
       const setPayments = (val) => updateActiveGroupData('payments', val);
@@ -189,11 +222,18 @@
       const [headerColor, setHeaderColor] = useState('#ef4444');
       const [teacherNameColor, setTeacherNameColor] = useState('#fde047');
       const [cellColors, setCellColors] = useState({});
-      const [customImages, setCustomImages] = useState({ topLeft: null, topRight: null, bottomRight: null, bottomLeft: null });
       const [contactInfo, setContactInfo] = useState({ tel: '0646195645', fb: 'Noon Supanuch', line: 'noon_supanuch' });
       const [newStudentName, setNewStudentName] = useState('');
       const [defaultFee, setDefaultFee] = useState(1500);
       const [cloudStatus, setCloudStatus] = useState('');
+
+      // จำกัดให้ผู้ปกครองดูได้แค่เดือนปัจจุบัน
+      useEffect(() => {
+        if (!isAdmin) {
+          const now = new Date();
+          setCurrentDate(new Date(now.getFullYear(), now.getMonth(), 1));
+        }
+      }, [isAdmin]);
 
       // --- Google Sheets Sync (Auto-Save & Load) ---
       const GAS_URL = window.GAS_WEB_APP_URL;
@@ -217,14 +257,29 @@
                if (data.quote) setQuote(data.quote);
                if (data.contactInfo) setContactInfo(data.contactInfo);
                if (data.defaultFee) setDefaultFee(data.defaultFee);
-               if (data.appIcon) setAppIcon(data.appIcon);
-               if (data.customImages) setCustomImages(data.customImages);
+               
+               // โหลดข้อมูลรูปภาพรายเดือน (หรือดึงของเก่ามาใช้หากมี)
+               const initMonthKey = `${new Date().getFullYear()}-${new Date().getMonth()}`;
+               if (data.monthlyAppIcons) setMonthlyAppIcons(data.monthlyAppIcons);
+               else if (data.appIcon) setMonthlyAppIcons({ [initMonthKey]: data.appIcon });
+
+               if (data.monthlyCustomImages) setMonthlyCustomImages(data.monthlyCustomImages);
+               else if (data.customImages) setMonthlyCustomImages({ [initMonthKey]: data.customImages });
+
                if (data.groupData) {
                   const parsed = {};
                   for (const k in data.groupData) {
+                     const g = data.groupData[k];
+                     let mStudents = g.monthlyStudents || {};
+                     // แปลงข้อมูลเก่าให้เข้ากับระบบรายเดือน
+                     if (!g.monthlyStudents && g.students) {
+                         const cmk = `${new Date().getFullYear()}-${new Date().getMonth()}`;
+                         mStudents[cmk] = g.students;
+                     }
                      parsed[k] = {
-                        ...data.groupData[k],
-                        classDays: new Set(data.groupData[k].classDays || [])
+                        ...g,
+                        monthlyStudents: mStudents,
+                        classDays: new Set(g.classDays || [])
                      };
                   }
                   setGroupData(parsed);
@@ -272,8 +327,8 @@
                   quote,
                   contactInfo,
                   defaultFee,
-                  appIcon,
-                  customImages,
+                  monthlyAppIcons,
+                  monthlyCustomImages,
                   groupData: serializedGroupData,
                   updatedAt: new Date().toISOString()
                };
@@ -293,11 +348,11 @@
          }, 1500); // ดีเลย์ 1.5 วินาทีเพื่อไม่ให้ส่งรัวเกินไปเวลาพิมพ์
          
          return () => clearTimeout(timer);
-      }, [groups, groupData, teacherName, quote, contactInfo, defaultFee, appIcon, customImages, isAdmin]);
+      }, [groups, groupData, teacherName, quote, contactInfo, defaultFee, monthlyAppIcons, monthlyCustomImages, isAdmin]);
 
       // --- Dynamic Web App Manifest & Icon Update (PWA) ---
       useEffect(() => {
-        const iconUrl = appIcon || 'https://placehold.co/192x192/ef4444/white?text=App';
+        const iconUrl = currentAppIcon || 'https://placehold.co/192x192/ef4444/white?text=App';
         
         // 1. Update HTML Head tags
         const favicon = document.getElementById('favicon');
@@ -340,7 +395,7 @@
         }
         manifestLink.href = manifestURL;
 
-      }, [appIcon, teacherName]); // ทำงานใหม่เมื่อไอคอนหรือชื่อครูเปลี่ยน
+      }, [currentAppIcon, currentDate, teacherName]); // ทำงานใหม่เมื่อไอคอนหรือชื่อครูเปลี่ยน
 
       // --- Calendar Data ---
       const monthNames = ["มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน", "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"];
@@ -355,10 +410,6 @@
       }, []);
 
       const dayNames = isMobile ? dayNamesShort : dayNamesLong;
-
-      const currentYear = currentDate.getFullYear();
-      const currentMonth = currentDate.getMonth();
-      const currentMonthKey = `${currentYear}-${currentMonth}`;
 
       const formatDate = (year, month, day) => {
         return `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
@@ -408,8 +459,19 @@
             ctx.drawImage(img, 0, 0, width, height);
             // แปลงเป็นภาพ PNG คงความโปร่งใส
             const dataUrl = canvas.toDataURL('image/png', 0.8);
-            setCustomImages(prev => ({ ...prev, [positionKey]: dataUrl }));
-            showAlert("อัปโหลดรูปภาพสำเร็จ\nผู้ปกครองจะเห็นรูปนี้บนตารางอัตโนมัติค่ะ");
+            
+            // บันทึกรูปลงในเดือนปัจจุบัน โดยดึงรูปมุมอื่นๆ จากเดือนก่อนหน้ามาใช้ด้วย
+            setMonthlyCustomImages(prev => {
+              const baseImages = prev[currentMonthKey] || getFallbackAsset(prev, currentMonthKey) || {};
+              return {
+                ...prev,
+                [currentMonthKey]: {
+                  ...baseImages,
+                  [positionKey]: dataUrl
+                }
+              };
+            });
+            showAlert("อัปโหลดรูปภาพสำเร็จ\nผู้ปกครองจะเห็นรูปนี้บนตารางเดือนนี้อัตโนมัติค่ะ");
           };
           img.src = event.target.result;
         };
@@ -441,7 +503,7 @@
               ctx.drawImage(img, x, y, size, size, 0, 0, 192, 192);
               
               const dataUrl = canvas.toDataURL('image/png', 0.8);
-              setAppIcon(dataUrl);
+              setMonthlyAppIcons(prev => ({ ...prev, [currentMonthKey]: dataUrl }));
               showAlert("อัปเดตไอคอนแอปเรียบร้อยแล้วค่ะ\nผู้ที่บันทึกเว็บลงหน้าจอจะเห็นไอคอนนี้ครับ");
             };
             img.src = event.target.result;
@@ -456,6 +518,24 @@
         const newId = students.length > 0 ? Math.max(...students.map(s => s.id)) + 1 : 1;
         setStudents([...students, { id: newId, name: newStudentName.trim(), fee: defaultFee }]);
         setNewStudentName('');
+      };
+
+      const pullPreviousMonthStudents = () => {
+        let prevMonth = currentMonth - 1;
+        let prevYear = currentYear;
+        if (prevMonth < 0) { prevMonth = 11; prevYear -= 1; }
+        const prevKey = `${prevYear}-${prevMonth}`;
+        const prevStudents = (activeGroup.monthlyStudents || {})[prevKey] || [];
+        
+        if (prevStudents.length === 0) {
+            showAlert(`ไม่มีรายชื่อนักเรียนของกลุ่มนี้ในเดือน ${monthNames[prevMonth]} ค่ะ`);
+            return;
+        }
+        
+        showConfirm(`ต้องการดึงรายชื่อนักเรียน ${prevStudents.length} คน จากเดือน${monthNames[prevMonth]} มาใช้หรือไม่?\n(รายชื่อปัจจุบันจะถูกเขียนทับ)`, () => {
+            setStudents(prevStudents);
+            setConfirmState({isOpen:false, message:'', onConfirm:null});
+        });
       };
 
       const updateStudentFee = (studentId, newFee) => {
@@ -603,15 +683,42 @@
       });
       const totalClassDaysThisMonth = classDaysThisMonth.length;
       
-      const studentStats = students.map(st => {
+      // Public View Combiner
+      let displayStudents = students;
+      if (!isAdmin) {
+         displayStudents = [];
+         Object.keys(groupData).forEach(gId => {
+             const g = groupData[gId];
+             (g.students || []).forEach(s => {
+                 displayStudents.push({ 
+                     ...s, 
+                     uniqueId: `${gId}-${s.id}`, 
+                     groupId: Number(gId), 
+                     groupName: groups.find(grp => grp.id === Number(gId))?.name 
+                 });
+             });
+         });
+      }
+
+      const displayStudentStats = displayStudents.map(st => {
+        const gId = !isAdmin ? st.groupId : activeGroupId;
+        const gData = groupData[gId] || {};
+        const gClassDays = gData.classDays || new Set();
+        const gAttendance = gData.attendance || {};
+        
+        const stClassDaysThisMonth = Array.from(gClassDays).filter(ds => {
+          const d = new Date(ds); return d.getFullYear() === currentYear && d.getMonth() === currentMonth;
+        });
+        const stTotalClassDays = stClassDaysThisMonth.length;
+        
         let attended = 0;
         let makeup = 0;
-        classDaysThisMonth.forEach(ds => { 
-           const status = (attendance[ds] || {})[st.id];
+        stClassDaysThisMonth.forEach(ds => { 
+           const status = (gAttendance[ds] || {})[st.id];
            if (status === 'attended') attended++; 
            if (status === 'makeup') makeup++;
         });
-        return { ...st, attended, makeup, missed: totalClassDaysThisMonth - attended - makeup };
+        return { ...st, attended, makeup, missed: stTotalClassDays - attended - makeup, totalClassDays: stTotalClassDays };
       });
 
       // Admin Revenue Summary variables
@@ -622,14 +729,17 @@
       }, 0);
       const totalPendingRevenue = totalExpectedRevenue - totalCollectedRevenue;
 
-      // All Groups Revenue Summary
+      // All Groups Monthly Revenue Summary (เดือนปัจจุบัน)
       let allGroupsExpected = 0;
       let allGroupsCollected = 0;
       Object.values(groupData).forEach(group => {
-         const gStudents = group.students || [];
+         const gMonthlyStudents = group.monthlyStudents || {};
          const gPayments = group.payments || {};
+         
+         const mStudents = gMonthlyStudents[currentMonthKey] || [];
          const monthPay = gPayments[currentMonthKey] || {};
-         gStudents.forEach(s => {
+         
+         mStudents.forEach(s => {
             allGroupsExpected += (s.fee || defaultFee);
             const md = monthPay[s.id];
             if (md && md.status !== 'pending') {
@@ -638,6 +748,29 @@
          });
       });
       const allGroupsPending = allGroupsExpected - allGroupsCollected;
+
+      // All Groups Annual Revenue Summary
+      let annualExpected = 0;
+      let annualCollected = 0;
+      Object.values(groupData).forEach(group => {
+         const gMonthlyStudents = group.monthlyStudents || {};
+         const gPayments = group.payments || {};
+         
+         for (let month = 0; month < 12; month++) {
+            const mk = `${currentYear}-${month}`;
+            const mStudents = gMonthlyStudents[mk] || [];
+            const monthPay = gPayments[mk] || {};
+            
+            mStudents.forEach(s => {
+               annualExpected += (s.fee || defaultFee);
+               const md = monthPay[s.id];
+               if (md && md.status !== 'pending') {
+                  annualCollected += Number(md.amount);
+               }
+            });
+         }
+      });
+      const annualPending = annualExpected - annualCollected;
 
       return (
         <div className="min-h-screen p-2 md:p-4 lg:p-6 pb-24 max-w-[100vw] overflow-x-hidden">
@@ -667,9 +800,15 @@
           {/* Top Navbar */}
           <div className="max-w-6xl mx-auto bg-white rounded-2xl shadow-sm border border-rose-100 p-3 md:p-4 mb-4 flex flex-col md:flex-row justify-between items-center gap-4">
             <div className="flex items-center gap-2 md:gap-4 bg-rose-50 p-2 rounded-2xl border border-rose-100 w-full md:w-auto justify-between md:justify-start">
-              <button onClick={() => setCurrentDate(new Date(currentYear, currentMonth - 1, 1))} className="p-2 bg-white rounded-xl shadow-sm"><Icons.ChevronLeft className="text-rose-600" /></button>
+              {isAdmin ? (
+                <button onClick={() => setCurrentDate(new Date(currentYear, currentMonth - 1, 1))} className="p-2 bg-white rounded-xl shadow-sm hover:bg-gray-50"><Icons.ChevronLeft className="text-rose-600" /></button>
+              ) : <div className="w-10"></div>}
+              
               <h2 className="text-xl md:text-2xl font-bold text-rose-800 w-32 md:w-48 text-center">{monthNames[currentMonth]} {currentYear + 543}</h2>
-              <button onClick={() => setCurrentDate(new Date(currentYear, currentMonth + 1, 1))} className="p-2 bg-white rounded-xl shadow-sm"><Icons.ChevronRight className="text-rose-600" /></button>
+              
+              {isAdmin ? (
+                <button onClick={() => setCurrentDate(new Date(currentYear, currentMonth + 1, 1))} className="p-2 bg-white rounded-xl shadow-sm hover:bg-gray-50"><Icons.ChevronRight className="text-rose-600" /></button>
+              ) : <div className="w-10"></div>}
             </div>
             
             <div className="flex items-center gap-2 bg-rose-50 px-3 py-2 rounded-2xl border border-rose-200 w-full md:w-auto overflow-hidden">
@@ -686,7 +825,7 @@
 
             <div className="flex gap-2 w-full md:w-auto overflow-x-auto pb-1 md:pb-0 items-center justify-center sm:justify-start">
               {isAdmin ? (
-                <button onClick={() => {setIsAdmin(false); setSelectedDate(null);}} className="flex items-center gap-1 md:gap-2 bg-gray-100 px-3 md:px-4 py-2 rounded-xl font-bold text-xs md:text-base border-2 border-gray-200 whitespace-nowrap"><Icons.Unlock className="w-4 h-4 md:w-5 md:h-5"/> ออกจากแอดมิน</button>
+                <button onClick={() => {setIsAdmin(false); setSelectedDate(null); setCurrentDate(new Date());}} className="flex items-center gap-1 md:gap-2 bg-gray-100 px-3 md:px-4 py-2 rounded-xl font-bold text-xs md:text-base border-2 border-gray-200 whitespace-nowrap"><Icons.Unlock className="w-4 h-4 md:w-5 md:h-5"/> ออกจากแอดมิน</button>
               ) : (
                 <button onClick={() => setShowLoginModal(true)} className="flex items-center gap-1 md:gap-2 bg-rose-100 text-rose-700 px-3 md:px-4 py-2 rounded-xl font-bold text-xs md:text-base border-2 border-rose-200 whitespace-nowrap"><Icons.Lock className="w-4 h-4 md:w-5 md:h-5"/> สำหรับแอดมิน</button>
               )}
@@ -727,7 +866,7 @@
             {/* Header */}
             <header style={{backgroundColor: headerColor}} className="text-white p-3 md:p-6 relative flex items-center justify-center min-h-[70px] sm:min-h-[90px] md:min-h-[140px] border-b-4 md:border-b-[6px] border-white overflow-hidden">
               <div className="absolute left-2 md:left-8 opacity-40 md:opacity-100 z-0 pointer-events-none">
-                {customImages.topLeft ? <img src={customImages.topLeft} className="h-10 sm:h-16 md:h-28 lg:h-32 object-contain" /> : <span className="text-3xl md:text-6xl drop-shadow-md transform -rotate-12">🎒</span>}
+                {currentMonthImages.topLeft ? <img src={currentMonthImages.topLeft} className="h-10 sm:h-16 md:h-28 lg:h-32 object-contain" /> : <span className="text-3xl md:text-6xl drop-shadow-md transform -rotate-12">🎒</span>}
               </div>
               
               <div className="z-20 flex items-center justify-center px-12 sm:px-24 md:px-32 w-full">
@@ -743,7 +882,7 @@
               </div>
 
               <div className="absolute right-2 md:right-8 opacity-40 md:opacity-100 z-0 pointer-events-none">
-                {customImages.topRight ? <img src={customImages.topRight} className="h-10 sm:h-16 md:h-28 lg:h-32 object-contain" /> : <span className="text-3xl md:text-6xl drop-shadow-md transform rotate-12">📝</span>}
+                {currentMonthImages.topRight ? <img src={currentMonthImages.topRight} className="h-10 sm:h-16 md:h-28 lg:h-32 object-contain" /> : <span className="text-3xl md:text-6xl drop-shadow-md transform rotate-12">📝</span>}
               </div>
             </header>
 
@@ -805,9 +944,9 @@
                               </div>
                             )}
                             
-                            {dateStr && Object.keys(attendance[dateStr] || {}).length > 0 && (
+                            {dateStr && Object.keys(attendance[dateStr] || {}).filter(k => !k.includes('_note')).length > 0 && (
                               <div className="absolute bottom-0.5 right-0.5 text-[7px] sm:text-[9px] md:text-sm font-bold bg-green-100 border border-green-500 text-green-700 px-1 py-0 rounded md:rounded-xl z-20 shadow-sm whitespace-nowrap">
-                                มา {Object.keys(attendance[dateStr]||{}).length}/{students.length}
+                                มา {Object.keys(attendance[dateStr]||{}).filter(k => !k.includes('_note')).length}/{students.length}
                               </div>
                             )}
 
@@ -826,7 +965,7 @@
                 
                 {/* Custom Left Bottom Decoration */}
                 <div className="absolute -bottom-2 -left-2 md:-bottom-4 md:-left-4 z-20 pointer-events-none hidden sm:block">
-                   {customImages.bottomLeft && <img src={customImages.bottomLeft} className="h-16 md:h-32 object-contain" />}
+                   {currentMonthImages.bottomLeft && <img src={currentMonthImages.bottomLeft} className="h-16 md:h-32 object-contain" />}
                 </div>
               </div>
 
@@ -866,7 +1005,7 @@
                 </div>
 
                 <div className="mt-auto pt-2 md:pt-4 hidden sm:block">
-                  {customImages.bottomRight ? <img src={customImages.bottomRight} className="h-20 md:h-52 object-contain" /> : <span className="text-[60px] md:text-[100px] drop-shadow-xl">👩‍🏫</span>}
+                  {currentMonthImages.bottomRight ? <img src={currentMonthImages.bottomRight} className="h-20 md:h-52 object-contain" /> : <span className="text-[60px] md:text-[100px] drop-shadow-xl">👩‍🏫</span>}
                 </div>
               </div>
             </div>
@@ -919,7 +1058,14 @@
               {/* Students & Attendance */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <div className="bg-white p-4 md:p-8 rounded-[24px] md:rounded-[32px] border-[3px] border-gray-200 shadow-sm">
-                  <h3 className="text-lg md:text-2xl font-bold mb-4 flex items-center gap-2 text-blue-800"><Icons.UserPlus className="text-blue-600 w-5 h-5 md:w-6 md:h-6"/> รายชื่อนักเรียน</h3>
+                  <div className="flex justify-between items-center mb-4">
+                    <h3 className="text-lg md:text-2xl font-bold flex items-center gap-2 text-blue-800"><Icons.UserPlus className="text-blue-600 w-5 h-5 md:w-6 md:h-6"/> รายชื่อนักเรียน</h3>
+                    {isAdmin && (
+                      <button onClick={pullPreviousMonthStudents} className="text-xs md:text-sm bg-blue-100 text-blue-700 px-3 py-1.5 rounded-lg font-bold border border-blue-200 hover:bg-blue-200 transition shadow-sm">
+                        ดึงชื่อเดือนที่แล้ว
+                      </button>
+                    )}
+                  </div>
                   <form onSubmit={handleAddStudent} className="flex gap-2 mb-4">
                     <input type="text" value={newStudentName} onChange={e=>setNewStudentName(e.target.value)} placeholder="ชื่อนักเรียน..." className="flex-grow px-3 py-2 md:px-4 bg-gray-50 border-2 rounded-xl focus:border-blue-400 focus:outline-none font-bold text-sm md:text-base" />
                     <button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded-xl font-bold hover:bg-blue-700 text-sm md:text-base">เพิ่ม</button>
@@ -1028,14 +1174,26 @@
 
                    <hr className="border-amber-200 border-dashed mb-3" />
                    
-                   <div className="text-xs font-black text-indigo-500 text-center mb-2 bg-indigo-50 rounded-lg py-1">🌟 รวมเงินที่ได้ทุกกลุ่ม</div>
+                   <div className="text-xs font-black text-indigo-500 text-center mb-2 bg-indigo-50 rounded-lg py-1">🌟 รวมเงินที่ได้ทุกกลุ่ม (เดือนนี้)</div>
                    <div className="bg-indigo-100 p-3 rounded-xl mb-2 border border-indigo-200 flex justify-between items-center shadow-sm">
                      <span className="font-bold text-indigo-800 text-xs md:text-sm">เก็บแล้วทั้งหมด:</span>
                      <span className="font-black text-indigo-800 text-xl md:text-2xl">฿{allGroupsCollected.toLocaleString()}</span>
                    </div>
-                   <div className="bg-white p-2 rounded-xl border border-indigo-100 flex justify-between items-center text-xs md:text-sm">
+                   <div className="bg-white p-2 rounded-xl mb-3 border border-indigo-100 flex justify-between items-center text-xs md:text-sm">
                      <span className="font-bold text-gray-500">เป้าหมายทั้งหมด: ฿{allGroupsExpected.toLocaleString()}</span>
                      <span className="font-bold text-red-500">ค้างรวม: ฿{allGroupsPending.toLocaleString()}</span>
+                   </div>
+
+                   <hr className="border-amber-200 border-dashed mb-3" />
+                   
+                   <div className="text-xs font-black text-indigo-500 text-center mb-2 bg-indigo-50 rounded-lg py-1">🌟 รวมเงินที่ได้ทุกกลุ่ม (รายปี {currentYear + 543})</div>
+                   <div className="bg-indigo-100 p-3 rounded-xl mb-2 border border-indigo-200 flex justify-between items-center shadow-sm">
+                     <span className="font-bold text-indigo-800 text-xs md:text-sm">เก็บแล้วทั้งปี:</span>
+                     <span className="font-black text-indigo-800 text-xl md:text-2xl">฿{annualCollected.toLocaleString()}</span>
+                   </div>
+                   <div className="bg-white p-2 rounded-xl border border-indigo-100 flex justify-between items-center text-xs md:text-sm">
+                     <span className="font-bold text-gray-500">เป้าหมายปีนี้: ฿{annualExpected.toLocaleString()}</span>
+                     <span className="font-bold text-red-500">ค้างรวม: ฿{annualPending.toLocaleString()}</span>
                    </div>
                 </div>
               )}
@@ -1061,23 +1219,30 @@
                     <thead className="bg-amber-100 text-amber-900">
                       <tr>
                         <th className="p-2 md:p-3 text-center w-10 md:w-12">ที่</th>
-                        <th className="p-2 md:p-3 text-left">ชื่อ</th>
+                        <th className="p-2 md:p-3 text-left">ชื่อ {(!isAdmin && groups.length > 1) && "(กลุ่ม)"}</th>
                         <th className="p-2 md:p-3 text-center w-28 md:w-32">สถานะ</th>
                         {isAdmin && <th className="p-2 md:p-3 text-center w-24 md:w-28">ยอดเงิน</th>}
                       </tr>
                     </thead>
                     <tbody>
-                      {students.map((s, idx) => {
+                      {displayStudents.map((s, idx) => {
                         const sFee = s.fee || defaultFee;
-                        const data = (payments[currentMonthKey]||{})[s.id] || {status:'pending', amount:sFee};
+                        const gId = !isAdmin ? s.groupId : activeGroupId;
+                        const gPayments = (groupData[gId] || {}).payments || {};
+                        const data = (gPayments[currentMonthKey]||{})[s.id] || {status:'pending', amount:sFee};
+                        
                         const updatePay = (field, val) => {
+                          if (!isAdmin) return;
                           const mData = payments[currentMonthKey]||{};
                           setPayments({...payments, [currentMonthKey]:{...mData, [s.id]:{...data, [field]:val}}});
                         };
                         return (
-                          <tr key={s.id} className="border-b border-gray-100 hover:bg-amber-50/30 transition">
+                          <tr key={!isAdmin ? s.uniqueId : s.id} className="border-b border-gray-100 hover:bg-amber-50/30 transition">
                             <td className="p-2 md:p-3 text-center font-bold text-gray-500">{idx+1}</td>
-                            <td className="p-2 md:p-3 font-bold text-gray-800">{s.name}</td>
+                            <td className="p-2 md:p-3 font-bold text-gray-800">
+                              {s.name} 
+                              {!isAdmin && groups.length > 1 && <span className="text-[10px] md:text-xs text-gray-400 block font-normal">{s.groupName}</span>}
+                            </td>
                             <td className="p-2 md:p-3 text-center">
                               {isAdmin ? (
                                 <select value={data.status} onChange={e=>updatePay('status',e.target.value)} className={`p-1 md:p-2 rounded-lg font-bold border-2 text-[10px] md:text-sm w-full outline-none ${data.status==='before'?'bg-green-100 border-green-300 text-green-800':data.status==='after'?'bg-blue-100 border-blue-300 text-blue-800':'bg-red-50 border-red-200 text-red-600'}`}>
@@ -1097,7 +1262,7 @@
                           </tr>
                         )
                       })}
-                      {students.length === 0 && <tr><td colSpan={isAdmin ? "4" : "3"} className="p-4 text-center text-gray-400 font-bold text-sm">ไม่มีข้อมูลนักเรียน</td></tr>}
+                      {displayStudents.length === 0 && <tr><td colSpan={isAdmin ? "4" : "3"} className="p-4 text-center text-gray-400 font-bold text-sm">ไม่มีข้อมูลนักเรียน</td></tr>}
                     </tbody>
                   </table>
                 </div>
@@ -1111,24 +1276,27 @@
                <span className="bg-white p-2 rounded-2xl shadow-sm transform -rotate-6 text-2xl md:text-3xl">🏆</span> 
                สรุปการมาเรียน เดือน{monthNames[currentMonth]}
              </h3>
-             {totalClassDaysThisMonth === 0 ? (
-               <div className="text-center bg-white/60 p-6 md:p-8 rounded-3xl"><p className="text-base md:text-xl font-bold text-rose-600">ยังไม่มีการจัดตารางเรียนเดือนนี้ค่ะ</p></div>
+             {displayStudentStats.length === 0 ? (
+               <div className="text-center bg-white/60 p-6 md:p-8 rounded-3xl"><p className="text-base md:text-xl font-bold text-rose-600">ยังไม่มีข้อมูลนักเรียนค่ะ</p></div>
              ) : (
                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-                 {studentStats.map(stat => (
-                   <div key={stat.id} className="bg-white p-4 md:p-6 rounded-[24px] shadow-sm border-[3px] border-rose-100 flex flex-col h-full hover:shadow-md transition">
+                 {displayStudentStats.map(stat => (
+                   <div key={!isAdmin ? stat.uniqueId : stat.id} className="bg-white p-4 md:p-6 rounded-[24px] shadow-sm border-[3px] border-rose-100 flex flex-col h-full hover:shadow-md transition">
                      <div className="font-bold text-gray-800 text-base md:text-xl mb-3 md:mb-4 flex justify-between items-center">
-                        <span className="truncate pr-2">{stat.name}</span>
-                        <span className="shrink-0">{stat.missed===0?'🌟':''}</span>
+                        <span className="truncate pr-2">
+                           {stat.name}
+                           {!isAdmin && groups.length > 1 && <span className="text-xs text-gray-400 block font-normal">{stat.groupName}</span>}
+                        </span>
+                        <span className="shrink-0">{stat.missed===0 && stat.totalClassDays > 0 ?'🌟':''}</span>
                      </div>
                      <div className="bg-rose-50 rounded-xl p-3 mb-3 md:mb-4">
                        <div className="flex justify-between items-end mb-2 text-xs md:text-base">
                          <span className="font-bold text-gray-500">รวมเข้าเรียนแล้ว</span>
-                         <span className="font-black text-rose-600 text-lg md:text-xl">{stat.attended + stat.makeup}<span className="text-gray-400 text-xs md:text-sm">/{totalClassDaysThisMonth}</span></span>
+                         <span className="font-black text-rose-600 text-lg md:text-xl">{stat.attended + stat.makeup}<span className="text-gray-400 text-xs md:text-sm">/{stat.totalClassDays}</span></span>
                        </div>
                        <div className="w-full bg-gray-200 rounded-full h-2 md:h-3 flex overflow-hidden">
-                          <div className="bg-green-400 h-full transition-all" style={{width: `${(stat.attended/totalClassDaysThisMonth)*100}%`}}></div>
-                          <div className="bg-blue-400 h-full transition-all" style={{width: `${(stat.makeup/totalClassDaysThisMonth)*100}%`}}></div>
+                          <div className="bg-green-400 h-full transition-all" style={{width: stat.totalClassDays ? `${(stat.attended/stat.totalClassDays)*100}%` : '0%'}}></div>
+                          <div className="bg-blue-400 h-full transition-all" style={{width: stat.totalClassDays ? `${(stat.makeup/stat.totalClassDays)*100}%` : '0%'}}></div>
                        </div>
                        <div className="flex gap-2 justify-center mt-3 text-[10px] md:text-xs font-bold text-gray-600 bg-white p-1.5 md:p-2 rounded-lg border border-gray-200 flex-wrap">
                           <span>✅ มา: {stat.attended}</span>
@@ -1137,7 +1305,7 @@
                        </div>
                      </div>
                      <div className="mt-auto text-center font-bold text-xs md:text-sm">
-                       {stat.missed === 0 ? <span className="inline-block text-green-600 bg-green-50 px-2 py-1 md:px-3 md:py-1.5 rounded-lg border border-green-200 w-full">มาครบ 100% เก่งมาก!</span> : <span className="inline-block text-red-500 bg-red-50 px-2 py-1 md:px-3 md:py-1.5 rounded-lg border border-red-200 w-full">ขาดเรียนไป {stat.missed} วัน</span>}
+                       {stat.missed === 0 && stat.totalClassDays > 0 ? <span className="inline-block text-green-600 bg-green-50 px-2 py-1 md:px-3 md:py-1.5 rounded-lg border border-green-200 w-full">มาครบ 100% เก่งมาก!</span> : <span className="inline-block text-red-500 bg-red-50 px-2 py-1 md:px-3 md:py-1.5 rounded-lg border border-red-200 w-full">ขาดเรียนไป {stat.missed} วัน</span>}
                      </div>
                    </div>
                  ))}
