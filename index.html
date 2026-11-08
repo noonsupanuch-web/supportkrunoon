@@ -19,7 +19,7 @@
   <!-- Backend: Google Sheets via Apps Script -->
   <script>
     // ลิงก์ Google Sheets ล่าสุดของคุณ
-    window.GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbxjvha2qzD7Ks_AMdAdNZq8CBk_FulR7dYljEHTy6ptDJj3SeZ5rdWtqNuy_CXYbjXhhA/exec"; 
+    window.GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbyiypCpcFCgkPFqqVHdu8FoXWTa5fugOIR_Jjr_TW3U_nz94ztZQtAZuTHmBs2TswtH8A/exec"; 
   </script>
 
   <!-- Default App Icons & PWA Setup -->
@@ -172,7 +172,7 @@
       // All Group Data
       const [groupData, setGroupData] = useState({
         1: {
-          monthlyStudents: {}, 
+          monthlyStudents: {}, // เปลี่ยนมาใช้แยกรายเดือน
           classDays: new Set(),
           attendance: {},
           payments: {},
@@ -248,7 +248,8 @@
         const loadData = async () => {
           try {
             setCloudStatus('☁️ กำลังเชื่อมต่อ Sheets...');
-            const response = await fetch(GAS_URL);
+            // เพิ่มการล้างแคช (Cache-Buster) เพื่อให้ดึงข้อมูลใหม่เสมอ ป้องกันเบราว์เซอร์จำข้อมูลเก่า
+            const response = await fetch(`${GAS_URL}?t=${new Date().getTime()}`);
             const data = await response.json();
             
             if (data && Object.keys(data).length > 0) {
@@ -354,7 +355,7 @@
       useEffect(() => {
         const iconUrl = currentAppIcon || 'https://placehold.co/192x192/ef4444/white?text=App';
         
-        // 1. Update HTML Head tags
+        // 1. Update HTML Head tags (เปลี่ยน Favicon ให้เห็นผลทันทีแบบ Real-time)
         const favicon = document.getElementById('favicon');
         const appleIcon = document.getElementById('apple-touch-icon');
         if (favicon) favicon.href = iconUrl;
@@ -504,7 +505,7 @@
               
               const dataUrl = canvas.toDataURL('image/png', 0.8);
               setMonthlyAppIcons(prev => ({ ...prev, [currentMonthKey]: dataUrl }));
-              showAlert("อัปเดตไอคอนแอปเรียบร้อยแล้วค่ะ\nผู้ที่บันทึกเว็บลงหน้าจอจะเห็นไอคอนนี้ครับ");
+              showAlert("อัปเดตไอคอนแอปเรียบร้อยแล้วค่ะ\nผู้ที่บันทึกเว็บลงหน้าจอจะเห็นไอคอนใหม่นี้ครับ");
             };
             img.src = event.target.result;
           };
@@ -683,8 +684,13 @@
       });
       const totalClassDaysThisMonth = classDaysThisMonth.length;
       
-      // Display Students (สำหรับกลุ่มปัจจุบันเท่านั้น ใช้ร่วมกันทั้งแอดมินและผู้ปกครอง)
-      let displayStudents = students;
+      // แสดงรายชื่อเฉพาะกลุ่มที่เลือกใน Dropdown (ใช้เหมือนกันทั้งผู้ปกครองและแอดมิน)
+      let displayStudents = students.map(s => ({
+          ...s,
+          uniqueId: `${activeGroupId}-${s.id}`,
+          groupId: activeGroupId,
+          groupName: groups.find(grp => grp.id === activeGroupId)?.name
+      }));
 
       const displayStudentStats = displayStudents.map(st => {
         const gId = activeGroupId;
@@ -837,11 +843,14 @@
                 <label className="cursor-pointer bg-blue-100 hover:bg-blue-200 px-2 py-1 rounded-lg font-bold text-xs md:text-sm transition">ซ้ายล่าง <input type="file" accept="image/*" className="hidden" onChange={e => handleCustomImageUpload(e, 'bottomLeft')} /></label>
                 <label className="cursor-pointer bg-blue-100 hover:bg-blue-200 px-2 py-1 rounded-lg font-bold text-xs md:text-sm transition">ขวาล่าง <input type="file" accept="image/*" className="hidden" onChange={e => handleCustomImageUpload(e, 'bottomRight')} /></label>
                 
-                {/* ปุ่มอัปโหลดรูปไอคอนเว็บสำหรับ PWA */}
-                <label className="cursor-pointer bg-gradient-to-r from-rose-200 to-pink-200 hover:from-rose-300 hover:to-pink-300 text-rose-800 px-3 py-1.5 rounded-lg font-bold text-xs md:text-sm ml-2 border border-rose-300 shadow-sm transition">
-                  <span className="flex items-center gap-1"><Icons.Settings className="w-4 h-4"/> เปลี่ยนรูปไอคอนแอป (บนจอมือถือ)</span>
-                  <input type="file" accept="image/*" className="hidden" onChange={handleAppIconUpload} />
-                </label>
+                {/* ปุ่มอัปโหลดรูปไอคอนเว็บสำหรับ PWA (มีพรีวิวให้เห็นทันที) */}
+                <div className="flex items-center gap-2 ml-2">
+                  {currentAppIcon && <img src={currentAppIcon} alt="App Icon" className="w-8 h-8 md:w-10 md:h-10 rounded-xl shadow-md border-2 border-rose-200 object-cover bg-white" />}
+                  <label className="cursor-pointer bg-gradient-to-r from-rose-200 to-pink-200 hover:from-rose-300 hover:to-pink-300 text-rose-800 px-3 py-1.5 rounded-lg font-bold text-xs md:text-sm border border-rose-300 shadow-sm transition">
+                    <span className="flex items-center gap-1"><Icons.Settings className="w-4 h-4"/> เปลี่ยนรูปไอคอนแอป</span>
+                    <input type="file" accept="image/*" className="hidden" onChange={handleAppIconUpload} />
+                  </label>
+                </div>
               </div>
             </div>
           )}
@@ -1205,7 +1214,7 @@
                     <thead className="bg-amber-100 text-amber-900">
                       <tr>
                         <th className="p-2 md:p-3 text-center w-10 md:w-12">ที่</th>
-                        <th className="p-2 md:p-3 text-left">ชื่อนักเรียน</th>
+                        <th className="p-2 md:p-3 text-left">ชื่อ</th>
                         <th className="p-2 md:p-3 text-center w-28 md:w-32">สถานะ</th>
                         {isAdmin && <th className="p-2 md:p-3 text-center w-24 md:w-28">ยอดเงิน</th>}
                       </tr>
@@ -1213,7 +1222,7 @@
                     <tbody>
                       {displayStudents.map((s, idx) => {
                         const sFee = s.fee || defaultFee;
-                        const gId = activeGroupId;
+                        const gId = !isAdmin ? s.groupId : activeGroupId;
                         const gPayments = (groupData[gId] || {}).payments || {};
                         const data = (gPayments[currentMonthKey]||{})[s.id] || {status:'pending', amount:sFee};
                         
@@ -1223,10 +1232,10 @@
                           setPayments({...payments, [currentMonthKey]:{...mData, [s.id]:{...data, [field]:val}}});
                         };
                         return (
-                          <tr key={s.id} className="border-b border-gray-100 hover:bg-amber-50/30 transition">
+                          <tr key={!isAdmin ? s.uniqueId : s.id} className="border-b border-gray-100 hover:bg-amber-50/30 transition">
                             <td className="p-2 md:p-3 text-center font-bold text-gray-500">{idx+1}</td>
                             <td className="p-2 md:p-3 font-bold text-gray-800">
-                              {s.name}
+                              {s.name} 
                             </td>
                             <td className="p-2 md:p-3 text-center">
                               {isAdmin ? (
@@ -1247,7 +1256,7 @@
                           </tr>
                         )
                       })}
-                      {displayStudents.length === 0 && <tr><td colSpan={isAdmin ? "4" : "3"} className="p-4 text-center text-gray-400 font-bold text-sm">ไม่มีข้อมูลนักเรียนในกลุ่มนี้</td></tr>}
+                      {displayStudents.length === 0 && <tr><td colSpan={isAdmin ? "4" : "3"} className="p-4 text-center text-gray-400 font-bold text-sm">ไม่มีข้อมูลนักเรียน</td></tr>}
                     </tbody>
                   </table>
                 </div>
@@ -1266,7 +1275,7 @@
              ) : (
                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
                  {displayStudentStats.map(stat => (
-                   <div key={stat.id} className="bg-white p-4 md:p-6 rounded-[24px] shadow-sm border-[3px] border-rose-100 flex flex-col h-full hover:shadow-md transition">
+                   <div key={!isAdmin ? stat.uniqueId : stat.id} className="bg-white p-4 md:p-6 rounded-[24px] shadow-sm border-[3px] border-rose-100 flex flex-col h-full hover:shadow-md transition">
                      <div className="font-bold text-gray-800 text-base md:text-xl mb-3 md:mb-4 flex justify-between items-center">
                         <span className="truncate pr-2">
                            {stat.name}
